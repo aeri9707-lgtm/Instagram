@@ -1,0 +1,9 @@
+streamlit==1.57.0
+apify-client
+pandas
+python-dotenv
+requests
+instagrapi==2.6.5
+streamlit-authenticator==0.3.3
+PyYAML
+bcrypt

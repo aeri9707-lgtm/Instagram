@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+.DS_Store
+.ig_session.json
+auth_config.yaml
+campaigns.json
+
+gh_api_push.py
+gh_step1_get_code.py
+gh_step2_push.py
+push_to_github.py
+app_backup.py
+ui_components_backup.py
