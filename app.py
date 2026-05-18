@@ -20,12 +20,6 @@ st.set_page_config(
 )
 st.markdown(global_css(), unsafe_allow_html=True)
 
-# ── 로그인 게이트 ─────────────────────────────────────────────
-from auth import require_auth, logout_button
-_authenticator, _auth_username, _ = require_auth()
-with st.sidebar:
-    st.markdown(f"👤 **{_auth_username}**")
-    logout_button(_authenticator)
 
 # 저장된 세션 자동 복원 (처음 한 번만)
 if not st.session_state.get("_ig_session_load_attempted"):
