@@ -9,15 +9,31 @@ import os
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "auth_config.yaml")
 
+_DEFAULT_CONFIG = {
+    "credentials": {"usernames": {}},
+    "cookie": {"expiry_days": 7, "key": "growfit_secret_key", "name": "growfit_auth"},
+}
+
 
 def _load_config() -> dict:
-    with open(CONFIG_PATH, encoding="utf-8") as f:
-        return yaml.load(f, Loader=SafeLoader)
+    # 1) 로컬 yaml 파일 우선
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            return yaml.load(f, Loader=SafeLoader)
+    # 2) Streamlit Cloud Secrets
+    if hasattr(st, "secrets") and "auth" in st.secrets:
+        return dict(st.secrets["auth"])
+    # 3) 기본 빈 설정 (처음 배포 시)
+    return _DEFAULT_CONFIG.copy()
 
 
 def _save_config(config: dict) -> None:
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+    except Exception:
+        # Streamlit Cloud 읽기전용 환경에서는 저장 불가 — 세션에만 유지
+        pass
 
 
 def require_auth() -> tuple[stauth.Authenticate, str | None, bool]:
