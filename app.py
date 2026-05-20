@@ -87,6 +87,44 @@ def estimate_cost_range(followers: int, is_verified: bool = False, er_ratio: flo
 
 
 # ── 로그인 다이얼로그 ─────────────────────────────────────────────
+@st.dialog("🔑 Apify 토큰 설정", width="small")
+def _token_setup_dialog():
+    st.markdown("**무료로 시작하는 방법**")
+    st.markdown(
+        "<div style='background:#f0fdf4;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:14px;line-height:1.7;'>"
+        "1. <a href='https://apify.com/sign-up' target='_blank'>apify.com</a> 에서 무료 가입<br>"
+        "2. 가입 즉시 <b>월 $5 크레딧 자동 지급</b><br>"
+        "3. Settings → Integrations → API token 복사<br>"
+        "4. 아래에 붙여넣기 후 저장"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div style='background:#fffbeb;border-radius:8px;padding:8px 14px;font-size:13px;color:#92400e;margin-bottom:14px;'>"
+        "💡 월 $5 무료 크레딧으로 <b>키워드 검색 약 30~50회</b>, <b>계정 분석 약 60회</b> 이용 가능"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    _cur = st.session_state.get("apify_token", "")
+    _inp = st.text_input(
+        "API 토큰",
+        value=_cur,
+        type="password",
+        placeholder="apify_api_xxxxxxxx",
+        key="token_setup_input",
+        label_visibility="collapsed",
+    )
+    col1, col2 = st.columns(2)
+    if col1.button("저장", type="primary", use_container_width=True, key="token_setup_save"):
+        if _inp.strip():
+            st.session_state["apify_token"] = _inp.strip()
+            st.success("토큰 저장 완료!")
+            st.rerun()
+        else:
+            st.error("토큰을 입력해주세요.")
+    col2.link_button("토큰 발급받기 →", "https://console.apify.com/settings/integrations", use_container_width=True)
+
+
 @st.dialog("계정 설정", width="small")
 def _login_dialog():
     _dl = st.session_state.get("ig_logged_in", False)
@@ -221,12 +259,17 @@ _has_token = bool(
     or os.getenv("APIFY_API_TOKEN")
 )
 if not _has_token:
-    st.warning(
-        "**검색 기능을 사용하려면 Apify API 토큰이 필요해요.**  "
-        "우측 상단 👤 버튼을 눌러 토큰을 입력해주세요.  "
-        "[토큰 발급받기 →](https://console.apify.com/settings/integrations)",
-        icon="🔑",
+    st.markdown(
+        "<div style='background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;"
+        "padding:12px 16px;margin-bottom:8px;font-size:14px;line-height:1.7;'>"
+        "🔑 <b>Apify API 토큰을 입력하면 검색 기능을 이용할 수 있어요.</b><br>"
+        "<span style='color:#555;font-size:13px;'>"
+        "무료 가입 시 <b>월 $5 크레딧 자동 지급</b> — 키워드 검색 약 30~50회, 계정 분석 약 60회 무료 이용 가능</span>"
+        "</div>",
+        unsafe_allow_html=True,
     )
+    if st.button("🔑 토큰 입력하고 무료로 시작하기", use_container_width=True, key="banner_token_btn"):
+        _token_setup_dialog()
 
 # ── 플랫폼 선택 ──────────────────────────────────────────────────────
 if "platform" not in st.session_state:
@@ -342,6 +385,8 @@ with tab_following:
     if st.button("👥 팔로잉 탐색", type="primary", key="fw_btn", use_container_width=True):
         if not fw_input.strip():
             st.warning("계정명을 입력해주세요.")
+        elif not st.session_state.get("apify_token") and not os.getenv("APIFY_API_TOKEN"):
+            _token_setup_dialog()
         else:
             status2 = st.empty()
             bar2 = st.progress(0)
@@ -368,6 +413,8 @@ with tab_similar:
     if st.button("🔄 유사 계정 탐색", type="primary", key="sim_btn", use_container_width=True):
         if not sim_input.strip():
             st.warning("계정명을 입력해주세요.")
+        elif not st.session_state.get("apify_token") and not os.getenv("APIFY_API_TOKEN"):
+            _token_setup_dialog()
         else:
             status3 = st.empty()
             bar3 = st.progress(0)
@@ -460,6 +507,8 @@ with tab_ai:
     if st.button("🔍 크리에이터 검색", type="primary", key="ai_btn", use_container_width=True):
         if not ai_query.strip():
             st.warning("검색 요청을 입력해주세요.")
+        elif not st.session_state.get("apify_token") and not os.getenv("APIFY_API_TOKEN"):
+            _token_setup_dialog()
         else:
             parsed = parse_nl_query(ai_query.strip())
             tags = parsed["detected_tags"]
