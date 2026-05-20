@@ -7,10 +7,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 KEYWORD_ACTOR = "patient_discovery/instagram-search-users"  # 키워드 → 계정 직접 검색 (팔로워 수 포함)
-HASHTAG_ACTOR = "apify/instagram-hashtag-scraper"           # 키워드 검색 fallback용
+HASHTAG_ACTOR = "apify/instagram-hashtag-scraper"           # 해시태그 → 게시물 작성자 수집
 PROFILE_ACTOR = "apify/instagram-profile-scraper"           # 사용자명 → 상세 프로필
 POST_ACTOR    = "apify/instagram-scraper"                   # 계정 게시물 수집
 SEARCH_ACTOR  = "apify/google-search-scraper"               # 웹 검색 (브랜드 언급 시그널)
+
+# 카테고리별 관련 해시태그 (항상 해시태그 검색 병행 실행)
+_CATEGORY_HASHTAGS: dict[str, list[str]] = {
+    "육아":     ["육아맘", "맘스타그램", "육아일상", "육아", "아기"],
+    "뷰티":     ["뷰티", "스킨케어", "메이크업", "뷰스타그램", "데일리메이크업"],
+    "반려동물": ["반려동물", "강아지", "고양이", "펫스타그램", "댕댕이"],
+    "다이어트": ["다이어트", "헬스", "피트니스", "운동", "다이어터"],
+    "요리":     ["요리", "홈쿡", "집밥", "요리스타그램", "맛스타그램"],
+    "패션":     ["패션", "코디", "ootd", "데일리룩", "패션스타그램"],
+    "여행":     ["여행", "여행스타그램", "여행에미치다", "국내여행", "해외여행"],
+    "인테리어": ["인테리어", "홈스타그램", "집꾸미기", "인테리어스타그램"],
+    "재테크":   ["재테크", "주식", "투자", "경제", "부동산"],
+    "게임":     ["게임", "게이머", "스트리머", "gaming"],
+    "음악":     ["음악", "뮤지션", "가수", "싱어송라이터"],
+    "사진":     ["사진", "포토그래피", "사진작가", "photography"],
+}
 
 # ── 분석용 상수 ─────────────────────────────────────────────────────
 _AD_KEYWORDS = frozenset({
@@ -257,16 +273,18 @@ def search_by_keyword(
     if progress_callback:
         progress_callback(f"'{kw}' 키워드로 인스타그램 계정 검색 중...")
 
-    # ── Step 1: 키워드로 계정명 수집 (두 방식 병렬 시도) ────────────
+    # ── Step 1: 두 방식 항상 병행 실행 ─────────────────────────────
     usernames: set[str] = set()
-    keyword_followers: dict[str, int] = {}  # 검색 단계에서 얻은 팔로워 수 보관
+    keyword_followers: dict[str, int] = {}
 
     _last_err: str = ""
 
-    # 방식 A — 키워드 직접 검색 (더 많이 가져와야 필터 후 충분히 남음)
+    # 방식 A — username/bio 매칭 검색 (빠르고 정확하지만 커버리지 제한)
+    if progress_callback:
+        progress_callback(f"'{kw}' 계정 검색 중... (1/2)")
     try:
         run = client.actor(KEYWORD_ACTOR).call(
-            run_input={"query": kw, "maxResults": max_results * 5}
+            run_input={"query": kw, "maxResults": max_results * 4}
         )
         if not run:
             raise ValueError("run is None")
@@ -280,25 +298,28 @@ def search_by_keyword(
     except Exception as e:
         _last_err = str(e)
 
-    # 방식 B — 해시태그 fallback (A 실패 또는 결과 부족 시)
-    if len(usernames) < 5:
-        if progress_callback:
-            progress_callback(f"#{kw} 해시태그로 보완 검색 중... (1/2)")
-        try:
-            run2 = client.actor(HASHTAG_ACTOR).call(
-                run_input={"hashtags": [kw], "resultsLimit": max_results * 2}
+    # 방식 B — 해시태그 기반 수집 (항상 실행, 인기 계정 커버리지 대폭 향상)
+    _hashtags = _CATEGORY_HASHTAGS.get(kw, [kw])
+    if progress_callback:
+        progress_callback(f"#{', #'.join(_hashtags[:3])} 해시태그 수집 중... (2/2)")
+    try:
+        run2 = client.actor(HASHTAG_ACTOR).call(
+            run_input={
+                "hashtags": _hashtags[:5],
+                "resultsLimit": max(60, max_results * 5),
+            }
+        )
+        if not run2:
+            raise ValueError("run2 is None")
+        for item in client.dataset(run2["defaultDatasetId"]).iterate_items():
+            uname = (
+                item.get("ownerUsername")
+                or (item.get("owner") or {}).get("username", "")
             )
-            if not run2:
-                raise ValueError("run2 is None")
-            for item in client.dataset(run2["defaultDatasetId"]).iterate_items():
-                uname = (
-                    item.get("ownerUsername")
-                    or (item.get("owner") or {}).get("username", "")
-                )
-                if uname:
-                    usernames.add(uname)
-        except Exception as e:
-            _last_err = str(e)
+            if uname:
+                usernames.add(uname)
+    except Exception as e:
+        _last_err = str(e)
 
     if not usernames:
         if "hard limit" in _last_err.lower() or "usage" in _last_err.lower():
@@ -311,7 +332,7 @@ def search_by_keyword(
     if progress_callback:
         progress_callback(f"{len(usernames)}개 계정 프로필 수집 중... (2/2)")
 
-    profiles, err = _fetch_profiles(list(usernames)[:70], client)
+    profiles, err = _fetch_profiles(list(usernames)[:100], client)
     if err:
         return [], err
 
