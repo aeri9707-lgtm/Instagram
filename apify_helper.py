@@ -12,20 +12,33 @@ PROFILE_ACTOR = "apify/instagram-profile-scraper"           # 사용자명 → �
 POST_ACTOR    = "apify/instagram-scraper"                   # 계정 게시물 수집
 SEARCH_ACTOR  = "apify/google-search-scraper"               # 웹 검색 (브랜드 언급 시그널)
 
-# 카테고리별 관련 해시태그 (항상 해시태그 검색 병행 실행)
-_CATEGORY_HASHTAGS: dict[str, list[str]] = {
-    "육아":     ["육아맘", "맘스타그램", "육아일상", "육아", "아기"],
-    "뷰티":     ["뷰티", "스킨케어", "메이크업", "뷰스타그램", "데일리메이크업"],
-    "반려동물": ["반려동물", "강아지", "고양이", "펫스타그램", "댕댕이"],
-    "다이어트": ["다이어트", "헬스", "피트니스", "운동", "다이어터"],
-    "요리":     ["요리", "홈쿡", "집밥", "요리스타그램", "맛스타그램"],
-    "패션":     ["패션", "코디", "ootd", "데일리룩", "패션스타그램"],
-    "여행":     ["여행", "여행스타그램", "여행에미치다", "국내여행", "해외여행"],
-    "인테리어": ["인테리어", "홈스타그램", "집꾸미기", "인테리어스타그램"],
-    "재테크":   ["재테크", "주식", "투자", "경제", "부동산"],
-    "게임":     ["게임", "게이머", "스트리머", "gaming"],
-    "음악":     ["음악", "뮤지션", "가수", "싱어송라이터"],
-    "사진":     ["사진", "포토그래피", "사진작가", "photography"],
+# 카테고리별 bio/username 검색 키워드 — Instagram 검색창 기반
+_CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "육아":     ["육아맘", "맘스타그램", "육아크리에이터", "맘인플루언서"],
+    "뷰티":     ["뷰티크리에이터", "뷰티인플루언서", "메이크업아티스트", "스킨케어"],
+    "반려동물": ["펫인플루언서", "반려동물", "강아지크리에이터", "고양이"],
+    "다이어트": ["피트니스인플루언서", "다이어터", "헬스크리에이터", "운동"],
+    "요리":     ["푸드인플루언서", "홈쿡", "요리크리에이터", "집밥"],
+    "패션":     ["패션인플루언서", "스타일리스트", "패션크리에이터", "ootd"],
+    "여행":     ["여행인플루언서", "여행크리에이터", "트래블인플루언서"],
+    "인테리어": ["인테리어크리에이터", "홈스타그램", "인테리어인플루언서"],
+    "재테크":   ["재테크인플루언서", "경제크리에이터", "주식인플루언서"],
+    "게임":     ["게임인플루언서", "게이머", "스트리머"],
+    "음악":     ["뮤지션", "싱어송라이터", "음악크리에이터"],
+    "사진":     ["사진작가", "포토그래퍼", "photography"],
+}
+
+# Google 검색용 쿼리 템플릿
+_CATEGORY_GOOGLE_QUERIES: dict[str, list[str]] = {
+    "육아":     ["site:instagram.com 육아맘 팔로워", "instagram 육아 인플루언서 맘크리에이터"],
+    "뷰티":     ["site:instagram.com 뷰티크리에이터 팔로워", "instagram 뷰티 인플루언서 메이크업"],
+    "반려동물": ["site:instagram.com 반려동물 펫인플루언서", "instagram 강아지 고양이 크리에이터"],
+    "다이어트": ["site:instagram.com 다이어트 피트니스인플루언서", "instagram 헬스 운동 크리에이터"],
+    "요리":     ["site:instagram.com 요리크리에이터 홈쿡", "instagram 푸드인플루언서 집밥"],
+    "패션":     ["site:instagram.com 패션인플루언서 코디", "instagram 패션 스타일리스트 ootd"],
+    "여행":     ["site:instagram.com 여행인플루언서", "instagram 여행 크리에이터 트래블"],
+    "인테리어": ["site:instagram.com 인테리어크리에이터", "instagram 홈스타그램 인테리어"],
+    "재테크":   ["site:instagram.com 재테크인플루언서", "instagram 경제 주식 크리에이터"],
 }
 
 # ── 분석용 상수 ─────────────────────────────────────────────────────
@@ -273,51 +286,54 @@ def search_by_keyword(
     if progress_callback:
         progress_callback(f"'{kw}' 키워드로 인스타그램 계정 검색 중...")
 
-    # ── Step 1: 두 방식 항상 병행 실행 ─────────────────────────────
+    # ── Step 1: 멀티 키워드 + Google 검색 병행 ──────────────────────
     usernames: set[str] = set()
     keyword_followers: dict[str, int] = {}
-
     _last_err: str = ""
 
-    # 방식 A — username/bio 매칭 검색 (빠르고 정확하지만 커버리지 제한)
-    if progress_callback:
-        progress_callback(f"'{kw}' 계정 검색 중... (1/2)")
-    try:
-        run = client.actor(KEYWORD_ACTOR).call(
-            run_input={"query": kw, "maxResults": max_results * 4}
-        )
-        if not run:
-            raise ValueError("run is None")
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-            uname = item.get("username", "")
-            if uname:
-                usernames.add(uname)
-                fc = _pick_int(item, "followersCount", "followers", "follower_count", "followedByCount")
-                if fc > 0:
-                    keyword_followers[uname] = fc
-    except Exception as e:
-        _last_err = str(e)
-
-    # 방식 B — 해시태그 기반 수집 (항상 실행, 인기 계정 커버리지 대폭 향상)
-    _hashtags = _CATEGORY_HASHTAGS.get(kw, [kw])
-    if progress_callback:
-        progress_callback(f"#{', #'.join(_hashtags[:3])} 해시태그 수집 중... (2/2)")
-    try:
-        run2 = client.actor(HASHTAG_ACTOR).call(
-            run_input={
-                "hashtags": _hashtags[:5],
-                "resultsLimit": max(60, max_results * 5),
-            }
-        )
-        if not run2:
-            raise ValueError("run2 is None")
-        for item in client.dataset(run2["defaultDatasetId"]).iterate_items():
-            uname = (
-                item.get("ownerUsername")
-                or (item.get("owner") or {}).get("username", "")
+    # 방식 A — 관련 키워드 여러 개로 username/bio 검색
+    _search_terms = _CATEGORY_KEYWORDS.get(kw, [kw])
+    # 원본 키워드도 포함, 중복 제거
+    _search_terms = list(dict.fromkeys([kw] + _search_terms))
+    for _i, _term in enumerate(_search_terms[:4]):
+        if progress_callback:
+            progress_callback(f"'{_term}' 계정 검색 중... ({_i+1}/{min(len(_search_terms),4)})")
+        try:
+            run = client.actor(KEYWORD_ACTOR).call(
+                run_input={"query": _term, "maxResults": max(30, max_results * 2)}
             )
-            if uname:
-                usernames.add(uname)
+            if not run:
+                continue
+            for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+                uname = item.get("username", "")
+                if uname:
+                    usernames.add(uname)
+                    fc = _pick_int(item, "followersCount", "followers", "follower_count", "followedByCount")
+                    if fc > 0:
+                        keyword_followers[uname] = fc
+        except Exception as e:
+            _last_err = str(e)
+
+    # 방식 B — Google 검색으로 Instagram 계정 발굴 (팔로워 많은 계정 적중률 높음)
+    _google_queries = _CATEGORY_GOOGLE_QUERIES.get(kw, [f"site:instagram.com {kw} 인플루언서"])
+    if progress_callback:
+        progress_callback(f"Google에서 {kw} 인플루언서 발굴 중...")
+    try:
+        g_run = client.actor(SEARCH_ACTOR).call(run_input={
+            "queries": "\n".join(_google_queries[:2]),
+            "maxPagesPerQuery": 1,
+            "resultsPerPage": 10,
+        })
+        if g_run:
+            _ig_url_re = re.compile(r"instagram\.com/([a-zA-Z0-9_.]{2,30})/?")
+            for item in client.dataset(g_run["defaultDatasetId"]).iterate_items():
+                for result in (item.get("organicResults") or []):
+                    _url = result.get("url") or ""
+                    m = _ig_url_re.search(_url)
+                    if m:
+                        _u = m.group(1)
+                        if _u not in ("p", "reel", "stories", "explore", "tv"):
+                            usernames.add(_u)
     except Exception as e:
         _last_err = str(e)
 
@@ -328,9 +344,9 @@ def search_by_keyword(
             return [], f"검색 API 오류: {_last_err}"
         return [], "검색 결과가 없어요. 다른 키워드를 입력해보세요."
 
-    # ── Step 2: 프로필 상세 수집 (bio·팔로워·지역 판별에 필수) ──────
+    # ── Step 2: 프로필 상세 수집 ────────────────────────────────────
     if progress_callback:
-        progress_callback(f"{len(usernames)}개 계정 프로필 수집 중... (2/2)")
+        progress_callback(f"후보 {len(usernames)}개 프로필 수집 중...")
 
     profiles, err = _fetch_profiles(list(usernames)[:100], client)
     if err:
