@@ -135,13 +135,14 @@ def parse_nl_query(text: str) -> dict:
         tags.append("성별: 남성")
 
     if not keyword:
-        # 카테고리 미감지 → 원문에서 명사 추출 시도
+        # 카테고리 미감지 → 원문에서 의미 있는 명사를 최대 2개 조합해 키워드로 사용
         stopwords = {"찾아", "줘", "검색", "인플루언서", "블로거", "유튜버",
                      "계정", "추천", "해줘", "알려", "보여", "나노", "마이크로",
                      "마이크", "매크로", "메가", "이상", "이하", "팔로워", "명",
                      "한국", "국내", "해외", "글로벌"}
-        tokens = re.findall(r"[가-힣a-zA-Z]{2,}", text)
-        keyword = next((tok for tok in tokens if tok not in stopwords), "인플루언서")
+        tokens = [t for t in re.findall(r"[가-힣a-zA-Z]{2,}", text) if t not in stopwords]
+        # 첫 두 단어를 공백으로 합쳐 검색 (예: "강아지 간식", "건강식품 비건")
+        keyword = " ".join(tokens[:2]) if tokens else "인플루언서"
 
     return {
         "keyword": keyword,

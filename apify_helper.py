@@ -292,9 +292,10 @@ def search_by_keyword(
     _last_err: str = ""
 
     # 방식 A — 관련 키워드 여러 개로 username/bio 검색
-    _search_terms = _CATEGORY_KEYWORDS.get(kw, [kw])
-    # 원본 키워드도 포함, 중복 제거
-    _search_terms = list(dict.fromkeys([kw] + _search_terms))
+    # 카테고리 매핑이 있으면 사용, 없으면 자동 생성
+    _predefined = _CATEGORY_KEYWORDS.get(kw, [])
+    _auto = [f"{kw}인플루언서", f"{kw}크리에이터"] if not _predefined else []
+    _search_terms = list(dict.fromkeys([kw] + _predefined + _auto))
     for _i, _term in enumerate(_search_terms[:4]):
         if progress_callback:
             progress_callback(f"'{_term}' 계정 검색 중... ({_i+1}/{min(len(_search_terms),4)})")
@@ -315,7 +316,10 @@ def search_by_keyword(
             _last_err = str(e)
 
     # 방식 B — Google 검색으로 Instagram 계정 발굴 (팔로워 많은 계정 적중률 높음)
-    _google_queries = _CATEGORY_GOOGLE_QUERIES.get(kw, [f"site:instagram.com {kw} 인플루언서"])
+    _google_queries = _CATEGORY_GOOGLE_QUERIES.get(kw, [
+        f"site:instagram.com {kw} 인플루언서",
+        f"instagram {kw} 크리에이터 팔로워",
+    ])
     if progress_callback:
         progress_callback(f"Google에서 {kw} 인플루언서 발굴 중...")
     try:
