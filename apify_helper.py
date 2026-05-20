@@ -266,7 +266,7 @@ def search_by_keyword(
     # 방식 A — 키워드 직접 검색 (더 많이 가져와야 필터 후 충분히 남음)
     try:
         run = client.actor(KEYWORD_ACTOR).call(
-            run_input={"query": kw, "maxResults": max_results * 3}
+            run_input={"query": kw, "maxResults": max_results * 5}
         )
         if not run:
             raise ValueError("run is None")
@@ -311,7 +311,7 @@ def search_by_keyword(
     if progress_callback:
         progress_callback(f"{len(usernames)}개 계정 프로필 수집 중... (2/2)")
 
-    profiles, err = _fetch_profiles(list(usernames)[:40], client)
+    profiles, err = _fetch_profiles(list(usernames)[:70], client)
     if err:
         return [], err
 

@@ -517,6 +517,11 @@ with tab_ai:
                     filtered = [p for p in filtered if f_min <= p["followers"] <= f_max]
 
                 status_ai.success(f"'{ai_query.strip()}' 검색 완료 — {len(filtered)}개 계정 발견!")
+                if len(filtered) < 3 and f_min > 0:
+                    st.info(
+                        f"팔로워 {f_min:,}명 이상 조건으로 필터하면 결과가 적을 수 있어요. "
+                        "팔로워 조건을 낮추거나 제거하고 다시 검색해보세요."
+                    )
                 st.session_state["profiles"] = filtered
                 st.session_state["search_label"] = ai_query.strip()
 
@@ -594,6 +599,13 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
             key="flt_grp", placeholder="전체",
         )
 
+        # 정렬 기준
+        _sort_by = st.selectbox(
+            "정렬 기준",
+            ["팔로워 많은순", "팔로워 적은순", "계정명순"],
+            key="flt_sort",
+        )
+
         # 지역
         _region_filter = st.radio(
             "지역",
@@ -619,15 +631,6 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
 
         # 인증 계정만
         _verified_only = st.checkbox("✅ 인증 계정만", key="flt_verified")
-
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-
-        # 정렬 기준
-        _sort_by = st.selectbox(
-            "정렬 기준",
-            ["팔로워 많은순", "팔로워 적은순", "계정명순"],
-            key="flt_sort",
-        )
 
     # ── 오른쪽: 필터 적용 + 결과 ─────────────────────────────────
     with _rcol:
@@ -819,7 +822,7 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
                             st.dataframe(pd.DataFrame(follow_results), use_container_width=True, hide_index=True)
 
             with result_tab4:
-                st.caption("계정의 최근 게시물·바이오를 분석해 시딩·공구 적합도, 상업 활동 지수, 위험도를 점수화해요.")
+                st.caption("최근 콘텐츠·프로필을 AI로 정밀 분석해 시딩 효과, 공구 전환력, 광고 피로도를 종합 점수로 제공합니다.")
                 st.caption("⚠️ 계정당 Apify 크레딧이 추가 소모돼요. 필요한 계정만 선택하세요.")
                 with st.expander("📌 분석 결과 해석 가이드", expanded=False):
                     st.markdown(
@@ -838,14 +841,14 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
                 )
                 posts_limit = st.slider("계정당 최근 게시물 수", 10, 50, 30, key="posts_limit")
                 _use_web_search = st.checkbox(
-                    "🔍 웹 검색으로 브랜드 언급 분석 추가 (크레딧 추가 소모)",
+                    "🔍 외부 브랜드 언급 교차 검증 (크레딧 추가 소모)",
                     key="use_web_search",
-                    help="Google 검색으로 협찬·공구·구매 후기 언급 수를 수집해 상업성 점수에 반영해요.",
+                    help="웹 검색 데이터를 교차 분석해 실제 협업 이력과 브랜드 평판을 상업성 점수에 반영합니다.",
                 )
                 _use_deep_comments = st.checkbox(
-                    "💬 댓글 500개 심층 분석 포함 (계정당 +₩1,600)",
+                    "💬 댓글 반응 정밀 분석 (계정당 +₩1,600)",
                     key="use_deep_comments",
-                    help="상위 게시물에서 최대 500개 댓글을 별도 수집해 구매의도·저품질 비율을 정밀 분석합니다. 계정 수 × ₩1,600 추가 비용이 발생해요.",
+                    help="상위 게시물 댓글 최대 500개를 수집해 구매 의도 반응과 저품질 비율을 정밀 측정합니다.",
                 )
                 if _use_deep_comments and len(analysis_usernames) > 0:
                     _est_cost = len(analysis_usernames) * 1600
