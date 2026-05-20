@@ -842,6 +842,14 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
                     key="use_web_search",
                     help="Google 검색으로 협찬·공구·구매 후기 언급 수를 수집해 상업성 점수에 반영해요.",
                 )
+                _use_deep_comments = st.checkbox(
+                    "💬 댓글 500개 심층 분석 포함 (계정당 +₩1,600)",
+                    key="use_deep_comments",
+                    help="상위 게시물에서 최대 500개 댓글을 별도 수집해 구매의도·저품질 비율을 정밀 분석합니다. 계정 수 × ₩1,600 추가 비용이 발생해요.",
+                )
+                if _use_deep_comments and len(analysis_usernames) > 0:
+                    _est_cost = len(analysis_usernames) * 1600
+                    st.warning(f"⚠️ 댓글 심층 분석 활성화 — {len(analysis_usernames)}개 계정 추가 예상 비용: **₩{_est_cost:,}**")
                 if st.button("📊 릴스·게시물 종합 분석", type="primary",
                              disabled=len(analysis_usernames) == 0, use_container_width=True):
                     analysis_bar = st.progress(0); analysis_status = st.empty()
@@ -852,6 +860,7 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
                     _results, _errors = analyze_accounts(
                         analysis_usernames, posts_limit, on_analysis_progress, profile_map,
                         apify_token=_apify_token, web_search=_use_web_search,
+                        deep_comments=_use_deep_comments,
                     )
                     analysis_bar.progress(1.0)
                     for e in _errors:
@@ -973,6 +982,45 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
                                     st.caption(f"최근 공구 게시물: {r['최근_공구']}")
                                 if r.get("공구_요약"):
                                     st.info("📝 " + r["공구_요약"])
+                            # ── 콘텐츠 믹스 & 업로드 패턴 ──────────────
+                            _ct = r.get("콘텐츠_타입", {})
+                            _active = r.get("활성_상태", "")
+                            if _ct or _active:
+                                st.divider()
+                                st.caption("📊 콘텐츠 분석")
+                                _dominant = r.get("주요_콘텐츠_타입", "-")
+                                _save_r   = r.get("저장유도형_비율", 0)
+                                _stab     = r.get("조회수_안정성", 0)
+                                _stab_pct = r.get("안정형_비율", 0)
+                                _eff      = r.get("팔로워_조회수_효율", 0)
+                                _wk       = r.get("주간_업로드수", 0)
+                                _days_ago = r.get("마지막_업로드_경과일")
+
+                                cx1, cx2, cx3 = st.columns(3)
+                                cx1.metric("주요 콘텐츠 타입", _dominant)
+                                cx2.metric("저장 유도형 비율", f"{_save_r:.0f}%",
+                                           help="루틴·꿀팁·비교·Before&After 등 저장을 유도하는 게시물 비율")
+                                cx3.metric("활성 상태", _active if _active else "-")
+
+                                cx4, cx5, cx6 = st.columns(3)
+                                cx4.metric("조회수 안정성", f"{_stab}/100",
+                                           help="평균의 30% 이상 조회수를 기록한 게시물 비율 기반")
+                                cx5.metric("안정형 비율", f"{_stab_pct:.0f}%")
+                                cx6.metric("팔로워 조회수 효율", f"{_eff:.1f}%",
+                                           help="(평균 조회수 / 팔로워 수) × 100")
+
+                                cx7, cx8 = st.columns(2)
+                                cx7.metric("주간 업로드 빈도", f"{_wk:.1f}회/주",
+                                           help="최근 90일 기준")
+                                cx8.metric("마지막 업로드", f"{_days_ago}일 전" if _days_ago is not None else "-")
+
+                                if _ct:
+                                    _ct_items = "  |  ".join(
+                                        f"{k} {v:.0f}%" for k, v in sorted(_ct.items(), key=lambda x: -x[1]) if v > 0
+                                    )
+                                    if _ct_items:
+                                        st.caption(f"콘텐츠 타입 분포: {_ct_items}")
+
                             st.caption("📢 광고 vs 일반 콘텐츠")
                             a1, a2, a3, a4 = st.columns(4)
                             a1.metric("광고 게시물 비율", f"{r['광고 비율(%)']:.0f}%")
@@ -981,9 +1029,15 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
                             a4.metric("광고 반응 저하", f"{r.get('광고 반응 저하(%)', 0):.0f}%")
                             if r.get("게시물당 EMV(원)"):
                                 st.caption(f"💰 게시물 1개당 예상 EMV: **{r['게시물당 EMV(원)']:,}원**")
-                            if r["분석 댓글 수"] > 0:
+                            if r.get("분석 댓글 수", 0) > 0:
                                 st.divider()
-                                st.caption(f"💬 댓글 품질 ({r['분석 댓글 수']}개 기준)")
+                                _deep_cnt = r.get("심층댓글_수집수", 0)
+                                _cq_label = (
+                                    f"💬 댓글 품질 — 심층 분석 {_deep_cnt}개"
+                                    if _deep_cnt > 0
+                                    else f"💬 댓글 품질 ({r['분석 댓글 수']}개 기준)"
+                                )
+                                st.caption(_cq_label)
                                 cq1, cq2 = st.columns(2)
                                 cq1.metric("🛍️ 구매 의도 댓글", f"{r['구매의도 댓글(%)']:.1f}%")
                                 cq2.metric("⚠️ 저품질 댓글", f"{r['저품질 댓글(%)']:.1f}%")

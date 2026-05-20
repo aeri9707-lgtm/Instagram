@@ -803,6 +803,129 @@ def _analyze_commerce_signals(bio: str, captions: list[str]) -> int:
     return min(score, 100)
 
 
+_CONTENT_TYPE_KW = {
+    "정보형": ["꿀팁", "루틴", "비교", "체크리스트", "후기", "팁", "방법", "추천", "리뷰", "정보", "before", "after", "알아야", "정리", "차이"],
+    "감성형": ["일상", "감성", "에세이", "셀카", "브이로그", "daily", "vlog", "그냥", "요즘", "오늘의"],
+    "공구형": ["공구", "공동구매", "오픈", "링크", "할인", "쿠폰", "구매"],
+    "광고형": ["광고", "협찬", "유료광고", "#ad", "#sponsored", "제공"],
+}
+_SAVE_INDUCING_KW = [
+    "루틴", "꿀팁", "비교", "before", "after", "체크리스트",
+    "실패", "추천", "방법", "정리", "알아야", "저장", "북마크",
+]
+
+
+def _analyze_content_mix(caption_ts: list[tuple[str, object]]) -> dict:
+    """캡션으로 콘텐츠 타입 분류 + 저장 유도형 비율 계산"""
+    type_counts = {k: 0 for k in _CONTENT_TYPE_KW}
+    save_inducing = 0
+    total = len(caption_ts)
+    if not total:
+        return {"콘텐츠_타입": {}, "저장유도형_비율": 0.0, "주요_콘텐츠_타입": "정보 없음"}
+
+    for caption, _ in caption_ts:
+        cap_low = caption.lower()
+        matched = []
+        for ctype, kws in _CONTENT_TYPE_KW.items():
+            if any(kw in cap_low for kw in kws):
+                type_counts[ctype] += 1
+                matched.append(ctype)
+        if any(kw in cap_low for kw in _SAVE_INDUCING_KW):
+            save_inducing += 1
+
+    pct_map = {k: round(v / total * 100, 1) for k, v in type_counts.items()}
+    dominant = max(type_counts.keys(), key=lambda k: type_counts[k])
+    if type_counts[dominant] == 0:
+        dominant = "미분류"
+
+    return {
+        "콘텐츠_타입": pct_map,
+        "저장유도형_비율": round(save_inducing / total * 100, 1),
+        "주요_콘텐츠_타입": dominant,
+    }
+
+
+def _analyze_view_stability(video_posts: list[dict], followers: int) -> dict:
+    """조회수 안정성 + 팔로워 대비 조회수 효율"""
+    views = [p["views"] for p in video_posts if p["views"] > 0]
+    if not views:
+        return {"조회수_안정성": 0, "안정형_비율": 0.0, "최소_조회수": 0, "팔로워_조회수_효율": 0.0}
+
+    avg_v = sum(views) / len(views)
+    stable = sum(1 for v in views if v >= avg_v * 0.3)
+    stability_pct = round(stable / len(views) * 100, 1)
+
+    # 안정성 점수: 80%+ stable→100, 60%→70, 40%→40, <40%→20
+    if stability_pct >= 80:   stability_score = 100
+    elif stability_pct >= 60: stability_score = 70
+    elif stability_pct >= 40: stability_score = 40
+    else:                     stability_score = 20
+
+    follower_efficiency = round(avg_v / followers * 100, 1) if followers else 0.0
+
+    return {
+        "조회수_안정성": stability_score,
+        "안정형_비율": stability_pct,
+        "최소_조회수": min(views),
+        "팔로워_조회수_효율": follower_efficiency,
+    }
+
+
+def _analyze_upload_pattern(caption_ts: list[tuple[str, object]]) -> dict:
+    """업로드 패턴: 주간 업로드 빈도 + 마지막 업로드 이후 경과일"""
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc)
+    from datetime import datetime as _dt
+    raw = [ts for _, ts in caption_ts if ts is not None]
+    timestamps: list[_dt] = sorted(raw, key=lambda t: t, reverse=True)  # type: ignore[arg-type]
+
+    if not timestamps:
+        return {"주간_업로드수": 0.0, "마지막_업로드_경과일": None, "활성_상태": "정보 없음"}
+
+    days_since_last = (now - timestamps[0]).days
+
+    # 최근 90일 내 포스트 수로 주간 업로드 계산
+    cutoff = now - timedelta(days=90)
+    recent_posts = [t for t in timestamps if t >= cutoff]
+    posts_per_week = round(len(recent_posts) / 13, 1)  # 90일 = 13주
+
+    if days_since_last <= 7:
+        active_status = "🟢 활성"
+    elif days_since_last <= 30:
+        active_status = "🟡 보통"
+    else:
+        active_status = "🔴 비활성"
+
+    return {
+        "주간_업로드수": posts_per_week,
+        "마지막_업로드_경과일": days_since_last,
+        "활성_상태": active_status,
+    }
+
+
+def _scrape_comments_deep(post_urls: list[str], limit_per_post: int, client) -> list[str]:
+    """상위 게시물 URL 목록에서 댓글을 대량 수집 (deep comment 옵션용)"""
+    if not post_urls:
+        return []
+    try:
+        run = client.actor(POST_ACTOR).call(run_input={
+            "directUrls":   post_urls,
+            "resultsType":  "comments",
+            "resultsLimit": limit_per_post,
+        })
+        if not run:
+            return []
+        comments: list[str] = []
+        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+            text = item.get("text") or item.get("ownerUsername", "")
+            if isinstance(text, str) and text.strip():
+                comments.append(text.strip())
+        return comments
+    except Exception:
+        return []
+
+
 def _web_search_brand_signals(username: str, client) -> dict:
     """Google 검색으로 브랜드 협업/상업 활동 시그널 수집"""
     try:
@@ -1003,6 +1126,8 @@ def analyze_account(
     following: int = 0,
     apify_token: str | None = None,
     web_search: bool = False,
+    deep_comments: bool = False,
+    deep_comments_limit: int = 500,
 ) -> tuple[dict, str | None]:
     client = _get_client(apify_token)
     if not client:
@@ -1029,6 +1154,7 @@ def analyze_account(
     captions: list[str] = []
     caption_ts: list[tuple[str, object]] = []   # (caption, datetime|None)
     all_comments: list[str] = []
+    post_urls_by_views: list[tuple[int, str]] = []  # (views, url) for deep comment sorting
 
     for item in client.dataset(run["defaultDatasetId"]).iterate_items():
         likes = int(item.get("likesCount") or item.get("likes", 0) or 0)
@@ -1049,6 +1175,11 @@ def analyze_account(
             text = c.get("text", "") if isinstance(c, dict) else str(c)
             if text:
                 all_comments.append(text)
+
+        # post URL 수집 (deep_comments용)
+        _url = item.get("url") or item.get("shortCode") and f"https://www.instagram.com/p/{item['shortCode']}/"
+        if _url:
+            post_urls_by_views.append((views, str(_url)))
 
         posts_data.append({
             "likes": likes, "cmts": cmts, "views": views,
@@ -1081,8 +1212,10 @@ def analyze_account(
         # 캡션이 있으면 공구 분석만 반환
         _non_empty = [c for c in captions if c.strip()]
         if _non_empty:
-            _gugu = _analyze_gugu_activity(caption_ts)
+            _gugu     = _analyze_gugu_activity(caption_ts)
             _commerce = _analyze_commerce_signals(bio, captions)
+            _cmix     = _analyze_content_mix(caption_ts)
+            _upat     = _analyze_upload_pattern(caption_ts)
             return {
                 "계정명": username, "분석_상태": "캡션 전용 (참여 데이터 수집 실패)",
                 "공구_여부": _gugu["공구_여부"],
@@ -1092,6 +1225,12 @@ def analyze_account(
                 "현재_공구_활성": _gugu["현재_공구_활성"],
                 "최근_공구": _gugu["최근_공구"],
                 "상업활동 지수": _commerce,
+                "콘텐츠_타입": _cmix["콘텐츠_타입"],
+                "주요_콘텐츠_타입": _cmix["주요_콘텐츠_타입"],
+                "저장유도형_비율": _cmix["저장유도형_비율"],
+                "주간_업로드수": _upat["주간_업로드수"],
+                "마지막_업로드_경과일": _upat["마지막_업로드_경과일"],
+                "활성_상태": _upat["활성_상태"],
             }, None
         return {}, (
             f"@{username} 게시물 지표(좋아요·댓글·캡션) 수집 실패 — "
@@ -1168,11 +1307,26 @@ def analyze_account(
     # ── EMV ─────────────────────────────────────────────────────────
     emv = _calc_emv(avg_likes, avg_comments, avg_views)
 
+    # ── 댓글 심층 수집 (옵션) ───────────────────────────────────────
+    deep_comment_count = 0
+    if deep_comments and post_urls_by_views:
+        if progress_callback:
+            progress_callback(f"@{username} 댓글 심층 수집 중 (최대 {deep_comments_limit}개)...")
+        top_urls = [u for _, u in sorted(post_urls_by_views, reverse=True)[:10]]
+        limit_per = max(50, deep_comments_limit // max(len(top_urls), 1))
+        deep = _scrape_comments_deep(top_urls, limit_per, client)
+        if deep:
+            all_comments = deep
+            deep_comment_count = len(deep)
+
     # ── 최종 점수 / 리포트 ──────────────────────────────────────────
     cq             = _analyze_comments(all_comments)
     brand_fit      = _detect_brand_fit(captions, bio)
     commerce_score = _analyze_commerce_signals(bio, captions)
     gugu_activity  = _analyze_gugu_activity(caption_ts)
+    content_mix    = _analyze_content_mix(caption_ts)
+    view_stability = _analyze_view_stability(video_posts, followers)
+    upload_pattern = _analyze_upload_pattern(caption_ts)
 
     web_signals: dict = {}
     if web_search:
@@ -1230,6 +1384,7 @@ def analyze_account(
         "구매의도 댓글(%)": cq["purchase_intent_pct"],
         "저품질 댓글(%)":   cq["low_quality_pct"],
         "분석 댓글 수":     cq["total"],
+        "심층댓글_수집수":  deep_comment_count,
         # 점수
         "시딩 점수":        scores["seeding"],
         "공구 적합도":      scores["gugu"],
@@ -1245,6 +1400,19 @@ def analyze_account(
         "공구_빈도(%)":     gugu_activity["공구_빈도"],
         "현재_공구_활성":   gugu_activity["현재_공구_활성"],
         "최근_공구":        gugu_activity["최근_공구"],
+        # 콘텐츠 믹스
+        "콘텐츠_타입":          content_mix["콘텐츠_타입"],
+        "주요_콘텐츠_타입":     content_mix["주요_콘텐츠_타입"],
+        "저장유도형_비율":       content_mix["저장유도형_비율"],
+        # 조회수 안정성
+        "조회수_안정성":         view_stability["조회수_안정성"],
+        "안정형_비율":           view_stability["안정형_비율"],
+        "최소_조회수":           view_stability["최소_조회수"],
+        "팔로워_조회수_효율":    view_stability["팔로워_조회수_효율"],
+        # 업로드 패턴
+        "주간_업로드수":         upload_pattern["주간_업로드수"],
+        "마지막_업로드_경과일":  upload_pattern["마지막_업로드_경과일"],
+        "활성_상태":             upload_pattern["활성_상태"],
         # 위험
         "위험도":           scores["risk_level"],
         "위험 신호":        scores["risk_signals"],
@@ -1261,6 +1429,7 @@ def analyze_accounts(
     profile_map: dict[str, dict] | None = None,
     apify_token: str | None = None,
     web_search: bool = False,
+    deep_comments: bool = False,
 ) -> tuple[list[dict], list[str]]:
     results, errors = [], []
     for i, username in enumerate(usernames):
@@ -1274,6 +1443,7 @@ def analyze_accounts(
             following=profile.get("following", 0),
             apify_token=apify_token,
             web_search=web_search,
+            deep_comments=deep_comments,
         )
         if err:
             errors.append(f"@{username}: {err}")
