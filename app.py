@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import pandas as pd
 import io
-from apify_helper import search_by_keyword, search_by_following, analyze_accounts, search_similar_creators
+from apify_helper import search_by_keyword, search_by_following, analyze_accounts, search_similar_creators, precise_filter_accounts, estimated_precise_filter_cost
 from dm_templates import classify_group, get_dm, get_group_label, GROUPS
 from instagram_dm import login, logout, load_session, send_dms, get_inbox, get_thread, reply_to_thread, check_follow_status, follow_users, get_follower_counts
 from nl_parser import parse_nl_query
@@ -566,11 +566,65 @@ with tab_ai:
                     filtered = [p for p in filtered if f_min <= p["followers"] <= f_max]
 
                 status_ai.success(f"'{ai_query.strip()}' 검색 완료 — {len(filtered)}개 계정 발견!")
+
+                # 정밀 필터 상태 초기화 (새 검색 시 이전 결과 제거)
+                st.session_state.pop("precise_filtered", None)
+
                 if len(filtered) < 3 and f_min > 0:
                     st.info(
                         f"팔로워 {f_min:,}명 이상 조건으로 필터하면 결과가 적을 수 있어요. "
-                        "팔로워 조건을 낮추거나 제거하고 다시 검색해보세요."
+                        "아래 정밀 필터를 사용하거나 팔로워 조건을 낮춰 다시 검색해보세요."
                     )
+
+                # ── 정밀 팔로워 필터 옵션 ────────────────────────────
+                _all_usernames = [p["username"] for p in profiles_raw]
+                _est_cost = estimated_precise_filter_cost(len(_all_usernames))
+                with st.expander(
+                    f"🎯 정밀 팔로워 필터 — 후보 {len(_all_usernames)}개 계정을 정확한 팔로워 수로 재필터 (예상 ₩{_est_cost:,})",
+                    expanded=(len(filtered) < 3 and f_min > 0),
+                ):
+                    st.markdown(
+                        "<div style='font-size:13px;color:#555;line-height:1.7;'>"
+                        "기본 검색은 bio/username 기반이라 팔로워 수가 부정확할 수 있어요.<br>"
+                        f"<b>instaprism 정밀 필터</b>를 실행하면 후보 {len(_all_usernames)}개 계정의 "
+                        f"실제 팔로워 수를 확인해 <b>{f_min:,}~"
+                        + (f"{f_max:,}" if f_max < 999_999_999 else "∞") +
+                        "명</b> 범위에 맞는 계정만 정확하게 추려줘요."
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(f"💳 크레딧 소모: 계정당 약 ₩10 × {len(_all_usernames)}개 = 약 ₩{_est_cost:,}")
+                    if st.button(
+                        f"🎯 정밀 필터 실행 (₩{_est_cost:,} 소모)",
+                        type="primary",
+                        key="precise_filter_btn",
+                        use_container_width=True,
+                    ):
+                        _pf_bar = st.progress(0)
+                        _pf_status = st.empty()
+                        def _pf_progress(msg):
+                            _pf_status.info(f"⏳ {msg}")
+                            _pf_bar.progress(50)
+                        _precise, _pf_err = precise_filter_accounts(
+                            _all_usernames, f_min, f_max,
+                            progress_callback=_pf_progress,
+                            apify_token=_apify_token,
+                        )
+                        _pf_bar.progress(100)
+                        if _pf_err:
+                            st.error(_pf_err)
+                        else:
+                            if parsed["region"] != "전체":
+                                _precise = [p for p in _precise if p.get("region", "해외") == parsed["region"]]
+                            st.session_state["precise_filtered"] = _precise
+                            _pf_status.success(f"정밀 필터 완료 — {len(_precise)}개 계정 확인!")
+                            st.rerun()
+
+                # 정밀 필터 결과가 있으면 그걸로 교체
+                if "precise_filtered" in st.session_state:
+                    filtered = st.session_state["precise_filtered"]
+                    st.success(f"✅ 정밀 필터 적용됨 — {len(filtered)}개 계정")
+
                 st.session_state["profiles"] = filtered
                 st.session_state["search_label"] = ai_query.strip()
 

@@ -6,11 +6,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-KEYWORD_ACTOR = "patient_discovery/instagram-search-users"  # 키워드 → 계정 직접 검색 (팔로워 수 포함)
-HASHTAG_ACTOR = "apify/instagram-hashtag-scraper"           # 해시태그 → 게시물 작성자 수집
-PROFILE_ACTOR = "apify/instagram-profile-scraper"           # 사용자명 → 상세 프로필
-POST_ACTOR    = "apify/instagram-scraper"                   # 계정 게시물 수집
-SEARCH_ACTOR  = "apify/google-search-scraper"               # 웹 검색 (브랜드 언급 시그널)
+KEYWORD_ACTOR     = "patient_discovery/instagram-search-users"  # 키워드 → 계정 직접 검색
+HASHTAG_ACTOR     = "apify/instagram-hashtag-scraper"           # 해시태그 → 게시물 작성자 수집
+PROFILE_ACTOR     = "apify/instagram-profile-scraper"           # 사용자명 → 상세 프로필
+POST_ACTOR        = "apify/instagram-scraper"                   # 계정 게시물 수집
+SEARCH_ACTOR      = "apify/google-search-scraper"               # 웹 검색 (브랜드 언급 시그널)
+USER_FILTER_ACTOR = "instaprism/instagram-user-filter"          # 정밀 팔로워/참여율 필터링
+
+# 정밀 필터 비용 상수 ($7 / 1,000 결과 기준, 1달러 = 1,400원)
+_PRECISE_FILTER_COST_PER_ACCOUNT = 7 / 1000 * 1400  # ≈ ₩9.8/계정
 
 # 카테고리별 bio/username 검색 키워드 — Instagram 검색창 기반
 _CATEGORY_KEYWORDS: dict[str, list[str]] = {
@@ -363,6 +367,72 @@ def search_by_keyword(
 
     profiles.sort(key=lambda x: x["followers"], reverse=True)
     return profiles[:max_results], None
+
+
+# ── ① 정밀 팔로워 필터링 (instaprism/instagram-user-filter) ────────
+def precise_filter_accounts(
+    usernames: list[str],
+    follower_min: int = 0,
+    follower_max: int = 999_999_999,
+    progress_callback=None,
+    apify_token: str | None = None,
+) -> tuple[list[dict], str | None]:
+    """
+    기존 검색 결과(username 목록)를 instaprism 필터 액터로 정밀 필터링.
+    팔로워 수 범위에 정확히 맞는 계정만 반환, 프로필 정보 포함.
+    비용: $7/1,000 계정 (≈ ₩10/계정)
+    """
+    client = _get_client(apify_token)
+    if not client:
+        return [], "Apify API 토큰이 없어요."
+    if not usernames:
+        return [], "필터링할 계정이 없어요."
+
+    if progress_callback:
+        progress_callback(f"{len(usernames)}개 계정 정밀 필터 중...")
+
+    try:
+        run = client.actor(USER_FILTER_ACTOR).call(run_input={
+            "usernames":    usernames,
+            "minFollowers": follower_min,
+            "maxFollowers": follower_max if follower_max < 999_999_999 else None,
+        })
+        if not run:
+            return [], "정밀 필터 실행 실패"
+
+        results: list[dict] = []
+        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+            uname = item.get("username") or item.get("userName", "")
+            if not uname:
+                continue
+            followers = _pick_int(item, "followersCount", "followers", "followedByCount")
+            following = _pick_int(item, "followingCount", "following", "friendsCount")
+            bio = str(item.get("biography") or item.get("bio") or "")
+            full_name = str(item.get("fullName") or item.get("full_name") or "")
+            results.append({
+                "username":    uname,
+                "full_name":   full_name,
+                "followers":   followers,
+                "following":   following,
+                "bio":         bio,
+                "category":    _detect_category_from_bio(bio, full_name),
+                "is_verified": bool(item.get("verified") or item.get("isVerified", False)),
+                "profile_url": f"https://www.instagram.com/{uname}/",
+                "region":      _detect_region(bio, full_name, uname, ""),
+                "city":        _detect_city(bio, full_name),
+                "relatedProfiles": [],
+                "_raw_followers": followers,
+            })
+
+        results.sort(key=lambda x: x["followers"], reverse=True)
+        return results, None
+    except Exception as e:
+        return [], f"정밀 필터 오류: {e}"
+
+
+def estimated_precise_filter_cost(count: int) -> int:
+    """계정 수 기준 정밀 필터 예상 비용 (원)"""
+    return max(1, round(count * _PRECISE_FILTER_COST_PER_ACCOUNT))
 
 
 # ── ② 경쟁사/브랜드 계정 게시물에서 협업 인플루언서 역추적 ─────────
