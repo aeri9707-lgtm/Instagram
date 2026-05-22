@@ -16,7 +16,7 @@ from ui_components import (
 st.set_page_config(
     page_title="AI 크리에이터 검색 그로우핏",
     page_icon="📸",
-    layout="wide",
+    layout="centered",
 )
 st.markdown(global_css(), unsafe_allow_html=True)
 
