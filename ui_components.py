@@ -583,12 +583,11 @@ hr, [data-testid="stDivider"] {
     margin: 0 !important;
 }
 .st-key-chip_section button:hover {
-    background: #111 !important;
-    border-color: transparent !important;
-    color: white !important;
+    background: #e8e4de !important;
+    border-color: #bbb !important;
 }
 .st-key-chip_section button:hover p {
-    color: white !important;
+    color: #222 !important;
 }
 </style>
 """
