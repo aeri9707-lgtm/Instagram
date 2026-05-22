@@ -525,33 +525,33 @@ with st.container(key="main_panel"):
             )
 
             _CHIPS_POOL = [
-                "20대 여성 뷰티 마이크로",
-                "글로우 메이크업 크리에이터",
-                "비건 클린뷰티 나노",
-                "K뷰티 스킨케어 루틴",
-                "한국 육아 맘 마이크로",
-                "신생아 육아 엄마 계정",
+                "20대 여성 스킨케어 뷰티 마이크로",
+                "글로우 메이크업 뷰티 크리에이터",
+                "비건 클린뷰티 한국 나노",
+                "K뷰티 스킨케어 루틴 마이크로",
+                "한국 육아 맘 팔로워 5만",
+                "신생아 육아 일상 엄마",
                 "육아템 공구 맘 크리에이터",
-                "육아 브이로그 감성 맘",
-                "피트니스 다이어트 여성",
-                "홈트 운동 마이크로",
-                "건강식품 영양제 리뷰",
-                "필라테스 요가 강사",
+                "육아 브이로그 감성 한국 맘",
+                "피트니스 다이어트 여성 마이크로",
+                "홈트레이닝 운동 크리에이터",
+                "건강식품 영양제 리뷰어",
+                "필라테스 요가 여성 강사",
                 "먹방 맛집 탐방 한국",
-                "홈쿡 레시피 요리",
-                "비건 채식 요리",
+                "홈쿡 레시피 요리 크리에이터",
+                "비건 채식 요리 한국",
                 "카페 디저트 감성 나노",
-                "반려동물 마이크로 한국",
-                "펫푸드 반려견 크리에이터",
+                "강아지 고양이 반려동물 한국",
+                "펫푸드 간식 반려견 크리에이터",
                 "고양이 일상 감성 계정",
-                "서울 홈카페 감성 나노",
+                "서울 감성 홈카페 나노",
                 "미니멀 인테리어 홈스타그램",
                 "신혼 인테리어 셀프 DIY",
-                "데일리룩 20대 여성 패션",
+                "데일리룩 패션 20대 여성",
                 "스트릿 패션 서울 남성",
                 "국내 여행 감성 크리에이터",
-                "제주 여행 감성 일상",
-                "재테크 주식 경제",
+                "제주 여행 일상 감성",
+                "재테크 주식 경제 크리에이터",
                 "20대 라이프스타일 브이로그",
             ]
             import random as _random
@@ -559,18 +559,19 @@ with st.container(key="main_panel"):
                 st.session_state["chip_set"] = _random.sample(_CHIPS_POOL, 6)
             _CHIPS = st.session_state["chip_set"]
             st.markdown("<div style='text-align:center;margin:6px 0 2px;font-size:11px;color:#b07090;'>예시 →</div>", unsafe_allow_html=True)
-            _ch1, _ch2, _ch3 = st.columns([1, 1, 1])
-            for _ci, (_cc, _cl) in enumerate(zip([_ch1, _ch2, _ch3], _CHIPS[:3])):
-                with _cc:
-                    if st.button(_cl, key=f"ai_chip_{_ci}", use_container_width=True):
-                        st.session_state["_ai_query_pending"] = _cl
-                        st.rerun()
-            _ch4, _ch5, _ch6 = st.columns([1, 1, 1])
-            for _ci, (_cc, _cl) in enumerate(zip([_ch4, _ch5, _ch6], _CHIPS[3:])):
-                with _cc:
-                    if st.button(_cl, key=f"ai_chip_{_ci+3}", use_container_width=True):
-                        st.session_state["_ai_query_pending"] = _cl
-                        st.rerun()
+            with st.container(key="chip_section"):
+                _ch1, _ch2, _ch3 = st.columns([1, 1, 1])
+                for _ci, (_cc, _cl) in enumerate(zip([_ch1, _ch2, _ch3], _CHIPS[:3])):
+                    with _cc:
+                        if st.button(_cl, key=f"ai_chip_{_ci}", use_container_width=True):
+                            st.session_state["_ai_query_pending"] = _cl
+                            st.rerun()
+                _ch4, _ch5, _ch6 = st.columns([1, 1, 1])
+                for _ci, (_cc, _cl) in enumerate(zip([_ch4, _ch5, _ch6], _CHIPS[3:])):
+                    with _cc:
+                        if st.button(_cl, key=f"ai_chip_{_ci+3}", use_container_width=True):
+                            st.session_state["_ai_query_pending"] = _cl
+                            st.rerun()
 
             if "fav_queries" not in st.session_state:
                 st.session_state["fav_queries"] = []

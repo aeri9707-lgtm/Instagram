@@ -559,29 +559,35 @@ hr, [data-testid="stDivider"] {
 }
 
 /* ── 예시 chip 버튼 ── */
-[data-testid="stHorizontalBlock"] [data-testid="stButton"] button[kind="secondary"] {
+.st-key-chip_section button {
     background: #f5f3ef !important;
     border: 1px solid #e4e0d9 !important;
     border-radius: 99px !important;
     color: #555 !important;
-    font-size: 9.5px !important;
+    font-size: 10px !important;
     font-weight: 400 !important;
-    padding: 6px 8px !important;
+    padding: 5px 6px !important;
     box-shadow: none !important;
     transition: all 0.15s !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    min-height: unset !important;
+    height: auto !important;
+    line-height: 1.3 !important;
 }
-[data-testid="stHorizontalBlock"] [data-testid="stButton"] button[kind="secondary"] p,
-[data-testid="stHorizontalBlock"] [data-testid="stButton"] button[kind="secondary"] span {
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+.st-key-chip_section button p {
+    font-size: 10px !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    word-break: keep-all !important;
+    margin: 0 !important;
 }
-[data-testid="stHorizontalBlock"] [data-testid="stButton"] button[kind="secondary"]:hover {
+.st-key-chip_section button:hover {
     background: #111 !important;
     border-color: transparent !important;
+    color: white !important;
+}
+.st-key-chip_section button:hover p {
     color: white !important;
 }
 </style>
