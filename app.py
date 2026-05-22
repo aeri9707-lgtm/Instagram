@@ -10,7 +10,7 @@ from campaign_store import save_campaign, list_campaigns, load_campaign, delete_
 from ui_components import (
     global_css, navbar_logo, hero_title,
     search_tips, gauge_row, score_bar,
-    risk_badge, cost_banner, group_summary_card, profile_card,
+    risk_badge, cost_banner, group_summary_card, profile_card, card_grid,
 )
 
 st.set_page_config(
@@ -466,7 +466,7 @@ with tab_ai:
     if "_ai_query_pending" in st.session_state:
         st.session_state["ai_query"] = st.session_state.pop("_ai_query_pending")
 
-    _, _ai_c, _ = st.columns([1, 6, 1])
+    _, _ai_c, _ = st.columns([0.5, 7, 0.5])
     with _ai_c:
         ai_query = st.text_area(
             "",
@@ -733,7 +733,7 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
     st.divider()
 
     # ── 필터 패널(좌) + 결과(우) ─────────────────────────────────
-    _fcol, _rcol = st.columns([1, 3], gap="large")
+    _fcol, _rcol = st.columns([1, 4], gap="large")
 
     # ── 왼쪽: 필터 패널 ──────────────────────────────────────────
     with _fcol:
@@ -913,13 +913,13 @@ if "profiles" in st.session_state and st.session_state["profiles"]:
                     )
                 else:
                     _plookup = {p["username"]: p for p in st.session_state["profiles"]}
-                    for _row in rows:
-                        _p = _plookup.get(_row["계정명"], {})
-                        if _p:
-                            st.markdown(
-                                profile_card(_p, _row.get("DM 문구", ""), _row.get("예상 단가", "")),
-                                unsafe_allow_html=True,
-                            )
+                    _cards = [
+                        profile_card(_p, _row.get("DM 문구", ""), _row.get("예상 단가", ""))
+                        for _row in rows
+                        if (_p := _plookup.get(_row["계정명"]))
+                    ]
+                    if _cards:
+                        st.markdown(card_grid(_cards), unsafe_allow_html=True)
 
             with result_tab2:
                 _cur_dm_style = st.session_state.get("dm_style", "basic")

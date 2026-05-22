@@ -197,10 +197,17 @@ button, input, select, textarea, label, p, h1, h2, h3, h4, h5, h6 {
     border-radius: 0 !important;
     box-shadow: none !important;
     padding-top: 1.5rem !important;
-    padding-left: 2.5rem !important;
-    padding-right: 2.5rem !important;
+    padding-left: 3rem !important;
+    padding-right: 3rem !important;
     padding-bottom: 2rem !important;
-    max-width: 1100px !important;
+    max-width: 1440px !important;
+}
+
+@media (max-width: 768px) {
+    .main .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
 }
 
 /* ── 탭 패널 — 흰색 카드 ── */
@@ -210,6 +217,12 @@ button, input, select, textarea, label, p, h1, h2, h3, h4, h5, h6 {
     box-shadow: 0 2px 24px rgba(0,0,0,0.07) !important;
     margin-top: 10px !important;
     padding: 32px 36px !important;
+}
+
+@media (min-width: 1024px) {
+    [data-baseweb="tab-panel"] {
+        padding: 40px 52px !important;
+    }
 }
 
 #MainMenu { visibility: hidden; }
@@ -482,6 +495,24 @@ hr, [data-testid="stDivider"] {
     box-shadow: 0 4px 14px rgba(131,58,180,0.5) !important;
 }
 
+/* ── PC 카드 그리드 ── */
+.pc-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+}
+.pc-card-grid > div {
+    margin-bottom: 0 !important;
+}
+
+/* ── PC 필터 패널 sticky ── */
+@media (min-width: 900px) {
+    [data-testid="column"]:first-child > div:first-child {
+        position: sticky;
+        top: 1rem;
+    }
+}
+
 /* ── 예시 chip 버튼 ── */
 [data-testid="stHorizontalBlock"] [data-testid="stButton"] button[kind="secondary"] {
     background: #f5f3ef !important;
@@ -605,6 +636,12 @@ def example_chips(selected: str = "") -> str:
         f"{chips}"
         f"</div>"
     )
+
+
+def card_grid(cards: list[str]) -> str:
+    """여러 profile_card HTML을 PC에서 2열 그리드로 묶어 반환."""
+    inner = "".join(f"<div>{c}</div>" for c in cards)
+    return f"<div class='pc-card-grid'>{inner}</div>"
 
 
 # ── 네비게이션 구분선 ─────────────────────────────────────────────────
