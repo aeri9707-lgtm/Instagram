@@ -6,6 +6,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _dataset_id(run) -> str:
+    """apify-client 버전에 무관하게 defaultDatasetId 추출."""
+    if isinstance(run, dict):
+        return run.get("defaultDatasetId") or ""
+    return getattr(run, "default_dataset_id", None) or ""
+
+
+def _run_id(run) -> str:
+    """Run 객체에서 id 추출 (dict / typed 모두 지원)."""
+    if isinstance(run, dict):
+        return run.get("id") or ""
+    return getattr(run, "id", None) or ""
+
 KEYWORD_ACTOR     = "patient_discovery/instagram-search-users"  # 키워드 → 계정 직접 검색
 HASHTAG_ACTOR     = "apify/instagram-hashtag-scraper"           # 해시태그 → 게시물 작성자 수집
 PROFILE_ACTOR     = "apify/instagram-profile-scraper"           # 사용자명 → 상세 프로필
@@ -379,10 +393,10 @@ def search_by_keyword(
     _ig_url_re = re.compile(r"instagram\.com/([a-zA-Z0-9_.]{2,30})/?")
     for _rtype, _run_obj in _runs:
         try:
-            _finished = client.run(_run_obj["id"]).wait_for_finish()
+            _finished = client.run(_run_id(_run_obj)).wait_for_finish()
             if not _finished:
                 continue
-            dataset_id = _finished.get("defaultDatasetId") or _run_obj.get("defaultDatasetId")
+            dataset_id = _dataset_id(_finished) or _dataset_id(_run_obj)
             if not dataset_id:
                 continue
             for item in client.dataset(dataset_id).iterate_items():
@@ -460,7 +474,7 @@ def precise_filter_accounts(
             return [], "정밀 필터 실행 실패"
 
         results: list[dict] = []
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+        for item in client.dataset(_dataset_id(run)).iterate_items():
             uname = item.get("username") or item.get("userName", "")
             if not uname:
                 continue
@@ -527,7 +541,7 @@ def search_by_following(
         )
         if not post_run:
             raise ValueError("post_run is None")
-        for item in client.dataset(post_run["defaultDatasetId"]).iterate_items():
+        for item in client.dataset(_dataset_id(post_run)).iterate_items():
             # 캡션에서 @멘션 추출
             caption = item.get("caption") or item.get("alt", "")
             for mention in re.findall(r"@([\w.]+)", caption):
@@ -549,7 +563,7 @@ def search_by_following(
         )
         if not prof_run:
             raise ValueError("prof_run is None")
-        for item in client.dataset(prof_run["defaultDatasetId"]).iterate_items():
+        for item in client.dataset(_dataset_id(prof_run)).iterate_items():
             for rel in item.get("relatedProfiles") or []:
                 uname = rel.get("username", "")
                 if uname and uname.lower() != account.lower():
@@ -590,7 +604,7 @@ def _fetch_profiles(
 
     profiles = []
     if run:
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+        for item in client.dataset(_dataset_id(run)).iterate_items():
             p = _normalize_profile(item)
             if p["username"]:
                 profiles.append(p)
@@ -720,7 +734,7 @@ def search_similar_creators(
             }
         )
         if post_run:
-            for item in client.dataset(post_run["defaultDatasetId"]).iterate_items():
+            for item in client.dataset(_dataset_id(post_run)).iterate_items():
                 cap = item.get("caption") or item.get("text") or ""
                 if cap:
                     captions.append(cap)
@@ -760,7 +774,7 @@ def search_similar_creators(
             )
             if not kw_run:
                 continue
-            for item in client.dataset(kw_run["defaultDatasetId"]).iterate_items():
+            for item in client.dataset(_dataset_id(kw_run)).iterate_items():
                 uname = (item.get("username") or item.get("userName") or "").strip()
                 if uname and uname != username:
                     candidates.add(uname)
@@ -778,7 +792,7 @@ def search_similar_creators(
                 )
                 if not ht_run:
                     continue
-                for item in client.dataset(ht_run["defaultDatasetId"]).iterate_items():
+                for item in client.dataset(_dataset_id(ht_run)).iterate_items():
                     uname = (
                         item.get("ownerUsername")
                         or (item.get("owner") or {}).get("username", "")
@@ -1087,7 +1101,7 @@ def _scrape_comments_deep(post_urls: list[str], limit_per_post: int, client) -> 
         if not run:
             return []
         comments: list[str] = []
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+        for item in client.dataset(_dataset_id(run)).iterate_items():
             text = item.get("text") or item.get("ownerUsername", "")
             if isinstance(text, str) and text.strip():
                 comments.append(text.strip())
@@ -1114,7 +1128,7 @@ def _web_search_brand_signals(username: str, client) -> dict:
         brand_kw = ["협찬", "협업", "콜라보", "공구", "구매", "쇼핑", "브랜드", "리뷰", "후기", "brand", "collab", "shop"]
         brand_signals = 0
         mention_count = 0
-        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+        for item in client.dataset(_dataset_id(run)).iterate_items():
             for result in (item.get("organicResults") or []):
                 text = ((result.get("title") or "") + " " + (result.get("snippet") or "")).lower()
                 if any(kw in text for kw in brand_kw):
@@ -1326,7 +1340,7 @@ def analyze_account(
     all_comments: list[str] = []
     post_urls_by_views: list[tuple[int, str]] = []  # (views, url) for deep comment sorting
 
-    for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+    for item in client.dataset(_dataset_id(run)).iterate_items():
         likes = int(item.get("likesCount") or item.get("likes", 0) or 0)
         cmts  = int(item.get("commentsCount") or item.get("comments", 0) or 0)
         views = int(
