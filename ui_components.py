@@ -501,21 +501,27 @@ hr, [data-testid="stDivider"] {
     letter-spacing: 1.5px;
     color: #aaa;
     text-transform: uppercase;
-    padding-top: 10px;
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0;
+    margin: 0;
 }
 
-/* ── 플랫폼 행 ── */
-.st-key-platform_row > div:first-child {
-    padding: 4px 0 6px 0 !important;
+/* ── 플랫폼 행 레이아웃 ── */
+.st-key-platform_row [data-testid="stHorizontalBlock"] {
     align-items: center !important;
+    gap: 8px !important;
+    padding: 4px 0 6px 0 !important;
 }
 
 /* ── 플랫폼 pill 컨테이너 배경 ── */
-.st-key-platform_pill > div:first-child {
+.st-key-platform_pill [data-testid="stHorizontalBlock"] {
     background: #f0ebe4;
     border-radius: 99px;
-    padding: 4px 4px !important;
+    padding: 4px !important;
+    gap: 2px !important;
 }
 
 /* ── 플랫폼 버튼 기본 (off) ── */
@@ -550,10 +556,11 @@ hr, [data-testid="stDivider"] {
 }
 
 /* ── 모드 행 ── */
-.st-key-mode_row > div:first-child {
-    background: #f0ebe4;
-    border-radius: 99px;
+.st-key-mode_row [data-testid="stHorizontalBlock"] {
+    background: #ede8e1;
+    border-radius: 16px;
     padding: 4px !important;
+    gap: 2px !important;
     margin-bottom: 8px;
 }
 
@@ -664,8 +671,8 @@ hr, [data-testid="stDivider"] {
 
 /* ── PC 플랫폼+모드 sticky ── */
 @media (min-width: 900px) {
-    .st-key-platform_row > div:first-child,
-    .st-key-mode_row > div:first-child {
+    .st-key-platform_row,
+    .st-key-mode_row {
         position: sticky;
         top: 0.5rem;
         z-index: 100;
