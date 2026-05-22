@@ -197,10 +197,10 @@ button, input, select, textarea, label, p, h1, h2, h3, h4, h5, h6 {
     border-radius: 0 !important;
     box-shadow: none !important;
     padding-top: 1.5rem !important;
-    padding-left: 3rem !important;
-    padding-right: 3rem !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
     padding-bottom: 2rem !important;
-    max-width: 1280px !important;
+    max-width: 760px !important;
 }
 
 @media (max-width: 768px) {
