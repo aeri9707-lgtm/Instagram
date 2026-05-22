@@ -275,78 +275,45 @@ _platform = st.session_state["platform"]
 
 _apify_token = st.session_state.get("apify_token") or None
 
-# ── 플랫폼 버튼 CSS ───────────────────────────────────────────────
-_ig_active = _platform == "instagram"
-_ig_btn_style = (
-    "background:linear-gradient(45deg,#833ab4 0%,#e1306c 50%,#f77737 100%) !important;"
-    "color:white !important;"
-) if _ig_active else "background:#f0ede8 !important;color:#aaa !important;"
-_tt_btn_style = (
-    "background:#010101 !important;color:white !important;"
-) if not _ig_active else "background:#f0ede8 !important;color:#aaa !important;"
-
-st.markdown(f"""<style>
-.st-key-btn_platform_ig button{{
-    {_ig_btn_style}
-    border-radius:99px !important;padding:6px 10px !important;
-    font-size:12px !important;font-weight:600 !important;
-    border:none !important;box-shadow:none !important;
-}}
-.st-key-btn_platform_tt button{{
-    {_tt_btn_style}
-    border-radius:99px !important;padding:6px 10px !important;
-    font-size:12px !important;font-weight:600 !important;
-    border:none !important;box-shadow:none !important;
-}}
-.st-key-btn_platform_tt,.st-key-btn_platform_tt>div{{overflow:visible!important;position:relative!important;}}
-.st-key-btn_platform_tt [data-testid="stButton"]{{position:relative!important;overflow:visible!important;}}
-.st-key-btn_platform_tt [data-testid="stButton"]::after{{
-    content:'BETA';position:absolute;top:-7px;right:2px;
-    background:#fff7ed;color:#c2410c;border:1.5px solid #f77737;
-    font-size:8px;font-weight:800;padding:1px 5px;border-radius:99px;
-    letter-spacing:1px;pointer-events:none;line-height:1.5;z-index:999;
-}}
-</style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
-# 상단 컨트롤 바 (플랫폼 · 모드 · 지역)
+# 플랫폼 선택 + 모드 탭
 # ══════════════════════════════════════════════════════════════
-with st.container(key="platform_switcher"):
-    _ps1, _ps2 = st.columns(2, gap="small")
-    with _ps1:
-        if st.button("📷 Instagram", key="btn_platform_ig", use_container_width=True):
-            st.session_state["platform"] = "instagram"
-            st.rerun()
-    with _ps2:
-        if st.button("♪ TikTok", key="btn_platform_tt", use_container_width=True):
-            st.session_state["platform"] = "tiktok"
-            st.rerun()
+with st.container(key="platform_row"):
+    _pr_left, _pr_right = st.columns([1, 5], gap="small")
+    with _pr_left:
+        st.markdown("<div class='seg-label'>PLATFORM</div>", unsafe_allow_html=True)
+    with _pr_right:
+        with st.container(key="platform_pill"):
+            _pb1, _pb2 = st.columns(2, gap="small")
+            with _pb1:
+                with st.container(key=f"pb_ig_{'on' if _platform == 'instagram' else 'off'}"):
+                    if st.button("📷 Instagram", key="btn_platform_ig", use_container_width=True):
+                        st.session_state["platform"] = "instagram"
+                        st.rerun()
+            with _pb2:
+                with st.container(key=f"pb_tt_{'on' if _platform == 'tiktok' else 'off'}"):
+                    if st.button("♪ TikTok", key="btn_platform_tt", use_container_width=True):
+                        st.session_state["platform"] = "tiktok"
+                        st.rerun()
 
-with st.container(key="top_controls"):
-    _tc1, _tc2 = st.columns([5, 2], gap="small")
-    with _tc1:
-        if _platform == "instagram":
-            _mode_labels = {
-                "search":    "🔍 크리에이터 검색",
-                "following": "🏢 브랜드 역추적",
-                "similar":   "🔄 유사 계정 탐색",
-            }
-            _mode_idx = list(_mode_labels.keys()).index(st.session_state["search_mode"])
-            _sel_mode_label = st.radio(
-                "", options=list(_mode_labels.values()), index=_mode_idx,
-                horizontal=True, label_visibility="collapsed", key="top_mode_radio",
-            )
-            _new_mode = [k for k, v in _mode_labels.items() if v == _sel_mode_label][0]
-            if _new_mode != st.session_state["search_mode"]:
-                st.session_state["search_mode"] = _new_mode
-                st.rerun()
-    with _tc2:
-        if _platform == "instagram":
-            region_setting = st.radio(
-                "지역", options=["전체", "한국", "해외"], horizontal=True, key="region_setting",
-            )
-        else:
-            region_setting = "전체"
+if _platform == "instagram":
+    _mode_labels = {
+        "search":    "AI 프롬프트",
+        "following": "브랜드 기반",
+        "similar":   "유사 검색",
+    }
+    with st.container(key="mode_row"):
+        _mc = st.columns(3, gap="small")
+        for _mi, (_mk, _ml) in enumerate(_mode_labels.items()):
+            with _mc[_mi]:
+                _active = st.session_state["search_mode"] == _mk
+                with st.container(key=f"mt_{_mk}_{'on' if _active else 'off'}"):
+                    if st.button(_ml, key=f"btn_mode_{_mk}", use_container_width=True):
+                        st.session_state["search_mode"] = _mk
+                        st.rerun()
+
+region_setting = "전체"
 
 # ── 검색 수 (세션값 유지) ─────────────────────────────────────────
 _cur_mode = st.session_state.get("search_mode", "search")

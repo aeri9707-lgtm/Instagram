@@ -494,54 +494,131 @@ hr, [data-testid="stDivider"] {
     box-shadow: 0 4px 14px rgba(131,58,180,0.5) !important;
 }
 
-/* ── 플랫폼 스위처 ── */
-.st-key-platform_switcher > div:first-child {
-    background: white;
-    border-radius: 16px;
-    border: 1px solid #e4e0d9;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    padding: 10px 16px;
-    margin-bottom: 6px;
+/* ── PLATFORM 레이블 ── */
+.seg-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #aaa;
+    text-transform: uppercase;
+    padding-top: 10px;
+    white-space: nowrap;
 }
-.st-key-platform_switcher button {
-    background: #f5f0eb !important;
-    border: 1px solid #e4e0d9 !important;
-    border-radius: 10px !important;
-    color: #555 !important;
-    font-weight: 600 !important;
+
+/* ── 플랫폼 행 ── */
+.st-key-platform_row > div:first-child {
+    padding: 4px 0 6px 0 !important;
+    align-items: center !important;
+}
+
+/* ── 플랫폼 pill 컨테이너 배경 ── */
+.st-key-platform_pill > div:first-child {
+    background: #f0ebe4;
+    border-radius: 99px;
+    padding: 4px 4px !important;
+}
+
+/* ── 플랫폼 버튼 기본 (off) ── */
+.st-key-pb_ig_off button,
+.st-key-pb_tt_off button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #888 !important;
+    font-weight: 500 !important;
     font-size: 14px !important;
+    border-radius: 99px !important;
     transition: all 0.15s !important;
 }
-.st-key-platform_switcher button:hover {
-    background: #ede8e2 !important;
-    color: #333 !important;
-}
-
-/* ── 상단 컨트롤 바 ── */
-.st-key-top_controls > div:first-child {
-    background: white;
-    border-radius: 16px;
-    border: 1px solid #e4e0d9;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    padding: 12px 20px;
-    margin-bottom: 4px;
-}
-
-/* 상단 모드 라디오 — 가로 pill */
-.st-key-top_controls .stRadio {
-    margin: 0 !important;
-}
-.st-key-top_controls .stRadio [data-baseweb="radio"] {
-    margin-right: 8px !important;
-}
-.st-key-top_controls .stRadio label {
-    font-size: 13px !important;
-    font-weight: 500 !important;
+.st-key-pb_ig_off button:hover,
+.st-key-pb_tt_off button:hover {
+    background: rgba(255,255,255,0.5) !important;
     color: #555 !important;
 }
-.st-key-top_controls .stRadio [data-checked="true"] + div label {
-    color: #833ab4 !important;
+
+/* ── 플랫폼 버튼 활성 (on) ── */
+.st-key-pb_ig_on button,
+.st-key-pb_tt_on button {
+    background: white !important;
+    border: none !important;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.14) !important;
+    color: #222 !important;
     font-weight: 700 !important;
+    font-size: 14px !important;
+    border-radius: 99px !important;
+    transition: all 0.15s !important;
+}
+
+/* ── 모드 행 ── */
+.st-key-mode_row > div:first-child {
+    background: #f0ebe4;
+    border-radius: 99px;
+    padding: 4px !important;
+    margin-bottom: 8px;
+}
+
+/* ── 모드 버튼 기본 (off) ── */
+.st-key-mt_search_off button,
+.st-key-mt_following_off button,
+.st-key-mt_similar_off button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #888 !important;
+    font-weight: 500 !important;
+    font-size: 14px !important;
+    border-radius: 99px !important;
+    transition: all 0.15s !important;
+}
+.st-key-mt_search_off button:hover,
+.st-key-mt_following_off button:hover,
+.st-key-mt_similar_off button:hover {
+    background: rgba(255,255,255,0.5) !important;
+    color: #555 !important;
+}
+
+/* ── 모드 버튼 활성 (on) ── */
+.st-key-mt_search_on button,
+.st-key-mt_following_on button,
+.st-key-mt_similar_on button {
+    background: white !important;
+    border: none !important;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.12) !important;
+    color: #222 !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    border-radius: 99px !important;
+    transition: all 0.15s !important;
+}
+
+/* ── TikTok BETA 배지 ── */
+.st-key-pb_tt_on, .st-key-pb_tt_on > div,
+.st-key-pb_tt_off, .st-key-pb_tt_off > div {
+    overflow: visible !important;
+    position: relative !important;
+}
+.st-key-pb_tt_on [data-testid="stButton"],
+.st-key-pb_tt_off [data-testid="stButton"] {
+    position: relative !important;
+    overflow: visible !important;
+}
+.st-key-pb_tt_on [data-testid="stButton"]::after,
+.st-key-pb_tt_off [data-testid="stButton"]::after {
+    content: 'BETA';
+    position: absolute;
+    top: -7px;
+    right: 4px;
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1.5px solid #f77737;
+    font-size: 8px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 99px;
+    letter-spacing: 1px;
+    pointer-events: none;
+    line-height: 1.5;
+    z-index: 999;
 }
 
 /* 메인 패널 */
@@ -585,9 +662,10 @@ hr, [data-testid="stDivider"] {
     margin-bottom: 0 !important;
 }
 
-/* ── PC 상단 컨트롤 sticky ── */
+/* ── PC 플랫폼+모드 sticky ── */
 @media (min-width: 900px) {
-    .st-key-top_controls > div:first-child {
+    .st-key-platform_row > div:first-child,
+    .st-key-mode_row > div:first-child {
         position: sticky;
         top: 0.5rem;
         z-index: 100;
