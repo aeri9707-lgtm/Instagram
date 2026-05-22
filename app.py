@@ -300,6 +300,33 @@ st.markdown(f"""<style>
     border:none !important;min-width:130px !important;
     box-shadow:none !important;
 }}
+/* BETA 뱃지 */
+.st-key-btn_platform_tt,
+.st-key-btn_platform_tt > div {{
+    overflow: visible !important;
+    position: relative !important;
+}}
+.st-key-btn_platform_tt [data-testid="stButton"] {{
+    position: relative !important;
+    overflow: visible !important;
+}}
+.st-key-btn_platform_tt [data-testid="stButton"]::after {{
+    content: 'BETA';
+    position: absolute;
+    top: -7px;
+    right: 2px;
+    background: #fff7ed;
+    color: #c2410c;
+    border: 1.5px solid #f77737;
+    font-size: 8px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 99px;
+    letter-spacing: 1px;
+    pointer-events: none;
+    line-height: 1.5;
+    z-index: 999;
+}}
 </style>""", unsafe_allow_html=True)
 
 st.markdown(
