@@ -586,7 +586,7 @@ with tab_ai:
                 status_ai.info(f"⏳ {msg}")
                 bar_ai.progress(50)
 
-            profiles_raw, err = search_by_keyword(parsed["keyword"], ai_limit, ai_progress, apify_token=_apify_token)
+            profiles_raw, err = search_by_keyword(parsed["keyword"], ai_limit, ai_progress, apify_token=_apify_token, region=parsed["region"])
             bar_ai.progress(100)
 
             if err:

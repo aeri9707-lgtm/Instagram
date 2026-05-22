@@ -16,7 +16,7 @@ USER_FILTER_ACTOR = "instaprism/instagram-user-filter"          # 정밀 팔로�
 # 정밀 필터 비용 상수 ($7 / 1,000 결과 기준, 1달러 = 1,400원)
 _PRECISE_FILTER_COST_PER_ACCOUNT = 7 / 1000 * 1400  # ≈ ₩9.8/계정
 
-# 카테고리별 bio/username 검색 키워드 — Instagram 검색창 기반
+# 카테고리별 bio/username 검색 키워드 — 한국/해외 분리
 _CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "육아":     ["육아맘", "맘스타그램", "육아크리에이터", "맘인플루언서"],
     "뷰티":     ["뷰티크리에이터", "뷰티인플루언서", "메이크업아티스트", "스킨케어"],
@@ -32,7 +32,23 @@ _CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "사진":     ["사진작가", "포토그래퍼", "photography"],
 }
 
-# Google 검색용 쿼리 템플릿
+# 해외 검색용 영어 키워드
+_CATEGORY_KEYWORDS_EN: dict[str, list[str]] = {
+    "육아":     ["mominfluencer", "momcreator", "parentingblogger", "momlife"],
+    "뷰티":     ["beautyinfluencer", "beautycreator", "makeupinfluencer", "skincareinfluencer"],
+    "반려동물": ["petinfluencer", "doginfluencer", "catinfluencer", "petcreator"],
+    "다이어트": ["fitnessinfluencer", "fitnesscreator", "gyminfluencer", "workoutcreator"],
+    "요리":     ["foodinfluencer", "foodblogger", "recipecreator", "homecook"],
+    "패션":     ["fashioninfluencer", "fashionblogger", "styleinfluencer", "ootdcreator"],
+    "여행":     ["travelinfluencer", "travelblogger", "travelcreator"],
+    "인테리어": ["interiorinfluencer", "homedecorinfluencer", "homestylist"],
+    "재테크":   ["financeinfluencer", "investmentcreator", "moneyblogger"],
+    "게임":     ["gameinfluencer", "gamer", "streamer"],
+    "음악":     ["musicianinfluencer", "singersongwriter", "musiccreator"],
+    "사진":     ["photographyinfluencer", "photographer", "photoinfluencer"],
+}
+
+# Google 검색용 쿼리 템플릿 (한국)
 _CATEGORY_GOOGLE_QUERIES: dict[str, list[str]] = {
     "육아":     ["site:instagram.com 육아맘 팔로워", "instagram 육아 인플루언서 맘크리에이터"],
     "뷰티":     ["site:instagram.com 뷰티크리에이터 팔로워", "instagram 뷰티 인플루언서 메이크업"],
@@ -43,6 +59,19 @@ _CATEGORY_GOOGLE_QUERIES: dict[str, list[str]] = {
     "여행":     ["site:instagram.com 여행인플루언서", "instagram 여행 크리에이터 트래블"],
     "인테리어": ["site:instagram.com 인테리어크리에이터", "instagram 홈스타그램 인테리어"],
     "재테크":   ["site:instagram.com 재테크인플루언서", "instagram 경제 주식 크리에이터"],
+}
+
+# Google 검색용 쿼리 템플릿 (해외 영어)
+_CATEGORY_GOOGLE_QUERIES_EN: dict[str, list[str]] = {
+    "육아":     ["site:instagram.com mominfluencer followers", "instagram mom parenting influencer creator"],
+    "뷰티":     ["site:instagram.com beautyinfluencer followers", "instagram beauty makeup skincare influencer"],
+    "반려동물": ["site:instagram.com petinfluencer followers", "instagram dog cat pet creator"],
+    "다이어트": ["site:instagram.com fitnessinfluencer followers", "instagram fitness workout gym creator"],
+    "요리":     ["site:instagram.com foodinfluencer followers", "instagram food recipe creator blogger"],
+    "패션":     ["site:instagram.com fashioninfluencer followers", "instagram fashion style ootd creator"],
+    "여행":     ["site:instagram.com travelinfluencer followers", "instagram travel creator blogger"],
+    "인테리어": ["site:instagram.com homedecorinfluencer", "instagram interior home decor creator"],
+    "재테크":   ["site:instagram.com financeinfluencer", "instagram finance investment money creator"],
 }
 
 # ── 분석용 상수 ─────────────────────────────────────────────────────
@@ -275,17 +304,18 @@ def search_by_keyword(
     max_results: int = 20,
     progress_callback=None,
     apify_token: str | None = None,
+    region: str = "전체",
 ) -> tuple[list[dict], str | None]:
     """
-    patient_discovery/instagram-search-users 로 키워드 → 계정 직접 검색.
-    인스타그램 검색창에 타이핑하는 것과 동일한 방식.
-    실패 시 해시태그 방식으로 자동 fallback.
+    멀티 키워드 + Google 검색으로 인스타그램 계정 수집.
+    region="해외" 시 영어 키워드로 자동 전환.
     """
     client = _get_client(apify_token)
     if not client:
         return [], "Apify API 토큰이 없어요. 우측 상단 설정에서 토큰을 입력해주세요."
 
     kw = keyword.strip().lstrip("#")
+    _is_global = (region == "해외")
 
     if progress_callback:
         progress_callback(f"'{kw}' 키워드로 인스타그램 계정 검색 중...")
@@ -295,11 +325,16 @@ def search_by_keyword(
     keyword_followers: dict[str, int] = {}
     _last_err: str = ""
 
-    # 방식 A — 관련 키워드 여러 개로 username/bio 검색
-    # 카테고리 매핑이 있으면 사용, 없으면 자동 생성
-    _predefined = _CATEGORY_KEYWORDS.get(kw, [])
-    _auto = [f"{kw}인플루언서", f"{kw}크리에이터"] if not _predefined else []
-    _search_terms = list(dict.fromkeys([kw] + _predefined + _auto))
+    # 방식 A — 관련 키워드 여러 개로 username/bio 검색 (해외면 영어 키워드)
+    if _is_global:
+        _predefined = _CATEGORY_KEYWORDS_EN.get(kw, [])
+        _auto = [f"{kw}influencer", f"{kw}creator"] if not _predefined else []
+        _base_kw = kw  # 영어 원본 그대로
+    else:
+        _predefined = _CATEGORY_KEYWORDS.get(kw, [])
+        _auto = [f"{kw}인플루언서", f"{kw}크리에이터"] if not _predefined else []
+        _base_kw = kw
+    _search_terms = list(dict.fromkeys([_base_kw] + _predefined + _auto))
     for _i, _term in enumerate(_search_terms[:4]):
         if progress_callback:
             progress_callback(f"'{_term}' 계정 검색 중... ({_i+1}/{min(len(_search_terms),4)})")
@@ -320,10 +355,16 @@ def search_by_keyword(
             _last_err = str(e)
 
     # 방식 B — Google 검색으로 Instagram 계정 발굴 (팔로워 많은 계정 적중률 높음)
-    _google_queries = _CATEGORY_GOOGLE_QUERIES.get(kw, [
-        f"site:instagram.com {kw} 인플루언서",
-        f"instagram {kw} 크리에이터 팔로워",
-    ])
+    if _is_global:
+        _google_queries = _CATEGORY_GOOGLE_QUERIES_EN.get(kw, [
+            f"site:instagram.com {kw} influencer",
+            f"instagram {kw} creator followers",
+        ])
+    else:
+        _google_queries = _CATEGORY_GOOGLE_QUERIES.get(kw, [
+            f"site:instagram.com {kw} 인플루언서",
+            f"instagram {kw} 크리에이터 팔로워",
+        ])
     if progress_callback:
         progress_callback(f"Google에서 {kw} 인플루언서 발굴 중...")
     try:
