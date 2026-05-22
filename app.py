@@ -331,7 +331,7 @@ if _platform == "instagram":
             f"{ml}</button>"
         )
 _mode_row_html = (
-    f"<div style='background:#ede8e1;border-radius:14px;padding:4px;display:flex;gap:2px;margin-top:8px;'>"
+    f"<div style='background:#cfc8bf;border-radius:14px;padding:4px;display:flex;gap:2px;margin-top:8px;width:100%;box-sizing:border-box;'>"
     f"{_mode_tabs_html}</div>"
     if _platform == "instagram" else ""
 )
@@ -339,12 +339,12 @@ _mode_row_html = (
 import streamlit.components.v1 as _cv1
 _cv1.html(f"""
 <style>
-  body{{margin:0;padding:0;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
+  html,body{{margin:0;padding:0;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;}}
 </style>
-<div style='padding:2px 0 4px 0;'>
+<div style='padding:2px 0 6px 0;width:100%;'>
   <div style='display:flex;align-items:center;gap:12px;'>
-    <span style='font-size:11px;font-weight:700;letter-spacing:1.5px;color:#aaa;text-transform:uppercase;white-space:nowrap;'>PLATFORM</span>
-    <div style='background:#f0ebe4;border-radius:99px;padding:4px;display:inline-flex;gap:2px;'>
+    <span style='font-size:11px;font-weight:700;letter-spacing:1.5px;color:#999;text-transform:uppercase;white-space:nowrap;flex-shrink:0;'>PLATFORM</span>
+    <div style='background:#cfc8bf;border-radius:99px;padding:4px;display:inline-flex;gap:2px;'>
       <button onclick="click_btn('__seg_ig')"
         style='border:none;outline:none;cursor:pointer;border-radius:99px;padding:7px 22px;
                font-size:14px;font-family:inherit;transition:all .15s;
@@ -372,7 +372,7 @@ function click_btn(key) {{
   if (btns.length) {{ btns[0].click(); }}
 }}
 </script>
-""", height=110 if _platform == "instagram" else 60, scrolling=False)
+""", height=118 if _platform == "instagram" else 62, scrolling=False)
 
 region_setting = "전체"
 
