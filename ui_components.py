@@ -495,47 +495,31 @@ hr, [data-testid="stDivider"] {
     box-shadow: 0 4px 14px rgba(131,58,180,0.5) !important;
 }
 
-/* ── 2패널 레이아웃 — 사이드바 패널 ── */
-.st-key-sidebar_panel > div:first-child {
+/* ── 상단 컨트롤 바 ── */
+.st-key-top_controls > div:first-child {
     background: white;
-    border-radius: 20px;
+    border-radius: 16px;
     border: 1px solid #e4e0d9;
-    box-shadow: 0 2px 16px rgba(0,0,0,0.05);
-    padding: 24px 18px;
-    position: sticky;
-    top: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    padding: 12px 20px;
+    margin-bottom: 4px;
 }
 
-/* 사이드바 섹션 헤더 */
-.sidebar-section-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: #bbb;
-    letter-spacing: 1.8px;
-    text-transform: uppercase;
-    margin: 18px 0 10px;
+/* 상단 모드 라디오 — 가로 pill */
+.st-key-top_controls .stRadio {
+    margin: 0 !important;
 }
-.sidebar-section-label:first-child { margin-top: 0; }
-
-/* 사이드바 모드 선택 라디오 — pill 스타일 */
-.st-key-sidebar_panel .stRadio [data-baseweb="radio"] {
-    margin-bottom: 4px !important;
+.st-key-top_controls .stRadio [data-baseweb="radio"] {
+    margin-right: 8px !important;
 }
-.st-key-sidebar_panel .stRadio label {
+.st-key-top_controls .stRadio label {
     font-size: 13px !important;
     font-weight: 500 !important;
-    color: #444 !important;
-    cursor: pointer !important;
+    color: #555 !important;
 }
-.st-key-sidebar_panel .stRadio [data-checked="true"] + div label {
+.st-key-top_controls .stRadio [data-checked="true"] + div label {
     color: #833ab4 !important;
-    font-weight: 600 !important;
-}
-
-/* 사이드바 내 숫자 입력 작게 */
-.st-key-sidebar_panel .stNumberInput > div > div > input {
-    font-size: 13px !important;
-    padding: 7px 10px !important;
+    font-weight: 700 !important;
 }
 
 /* 메인 패널 */
@@ -579,11 +563,12 @@ hr, [data-testid="stDivider"] {
     margin-bottom: 0 !important;
 }
 
-/* ── PC 사이드바 sticky ── */
+/* ── PC 상단 컨트롤 sticky ── */
 @media (min-width: 900px) {
-    .st-key-sidebar_panel > div:first-child {
+    .st-key-top_controls > div:first-child {
         position: sticky;
-        top: 1rem;
+        top: 0.5rem;
+        z-index: 100;
     }
 }
 
