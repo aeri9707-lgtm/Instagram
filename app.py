@@ -311,14 +311,14 @@ st.markdown(f"""<style>
 # ══════════════════════════════════════════════════════════════
 # 2패널 레이아웃
 # ══════════════════════════════════════════════════════════════
-_sidebar_col, _main_col = st.columns([1, 4], gap="large")
+_sidebar_col, _main_col = st.columns([1, 3], gap="large")
 
 # ── 왼쪽 사이드바 ─────────────────────────────────────────────
 with _sidebar_col:
     with st.container(key="sidebar_panel"):
 
         # 플랫폼 선택
-        st.markdown("<div class='sidebar-section-label'>PLATFORM</div>", unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-section-label'>플랫폼</div>", unsafe_allow_html=True)
         _sb_p1, _sb_p2 = st.columns(2)
         with _sb_p1:
             if st.button("📷 IG", key="btn_platform_ig", use_container_width=True):
@@ -1123,178 +1123,178 @@ with _main_col:
                     )
                     st.caption("DM 문구 + 팔로워 그룹 분류 + 프로필 링크가 모두 포함돼요.")
 
-# ── ④ 캠페인 ──────────────────────────────────────────────────────
-with st.container(border=True, key="campaign_card"):
-    st.subheader("📁 캠페인")
+    # ── ④ 캠페인 ──────────────────────────────────────────────────────
+    with st.container(border=True, key="campaign_card"):
+        st.subheader("📁 캠페인")
 
-    _all_camps = list_campaigns()
-    if not _all_camps:
-        st.caption("아직 저장된 캠페인이 없어요.")
-        st.caption("캠페인을 2개 이상 저장하면 비교할 수 있어요.")
-    else:
-        for _c in _all_camps:
-            _cc1, _cc2, _cc3 = st.columns([5, 1, 1])
-            with _cc1:
-                st.markdown(
-                    f"<div style='padding:6px 0;font-size:13px;'>"
-                    f"<strong>{_c['label']}</strong>"
-                    f"<span style='color:#6b7280;font-size:12px;margin-left:8px;'>{_c['count']}개 · {_c['saved_at']}</span>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-            with _cc2:
-                if st.button("불러오기", key=f"load_camp_{_c['name']}", use_container_width=True):
-                    _loaded = load_campaign(_c["name"])
-                    if _loaded:
-                        st.session_state["profiles"] = _loaded
-                        st.session_state["search_label"] = _c["label"]
-                        st.rerun()
-            with _cc3:
-                if st.button("삭제", key=f"del_camp_{_c['name']}", use_container_width=True):
-                    delete_campaign(_c["name"])
-                    st.rerun()
-
-        if len(_all_camps) >= 2:
-            _camp_names = [c["name"] for c in _all_camps]
-            _camp_labels = {c["name"]: f"{c['label']} ({c['count']}개, {c['saved_at']})" for c in _all_camps}
-
-            _cmp_col1, _cmp_col2 = st.columns(2)
-            with _cmp_col1:
-                _sel_a = st.selectbox("캠페인 A", _camp_names, format_func=lambda n: _camp_labels[n], key="cmp_a")
-            with _cmp_col2:
-                _sel_b = st.selectbox("캠페인 B", _camp_names,
-                                      index=min(1, len(_camp_names)-1),
-                                      format_func=lambda n: _camp_labels[n], key="cmp_b")
-
-            if st.button("비교하기", key="cmp_btn", type="primary"):
-                _prof_a = load_campaign(_sel_a)
-                _prof_b = load_campaign(_sel_b)
-
-                def _camp_stats(profiles: list[dict]) -> dict:
-                    if not profiles:
-                        return {}
-                    followers = [p.get("followers", 0) for p in profiles]
-                    verified = sum(1 for p in profiles if p.get("is_verified"))
-                    from dm_templates import classify_group
-                    groups: dict[str, int] = {}
-                    for p in profiles:
-                        g = classify_group(p.get("followers", 0))
-                        groups[g] = groups.get(g, 0) + 1
-                    return {
-                        "계정 수": len(profiles),
-                        "평균 팔로워": int(sum(followers) / len(followers)) if followers else 0,
-                        "최대 팔로워": max(followers) if followers else 0,
-                        "인증 계정": verified,
-                        "주요 그룹": max(groups, key=lambda k: groups[k]) if groups else "-",
-                    }
-
-                _stats_a = _camp_stats(_prof_a)
-                _stats_b = _camp_stats(_prof_b)
-
-                _hdr, _col_a, _col_b = st.columns([2, 2, 2])
-                _hdr.markdown("**항목**")
-                _col_a.markdown(f"**{_sel_a}**")
-                _col_b.markdown(f"**{_sel_b}**")
-
-                for _key in ["계정 수", "평균 팔로워", "최대 팔로워", "인증 계정", "주요 그룹"]:
-                    _r, _ca, _cb = st.columns([2, 2, 2])
-                    _va = _stats_a.get(_key, "-")
-                    _vb = _stats_b.get(_key, "-")
-                    _r.write(_key)
-                    if isinstance(_va, int) and isinstance(_vb, int) and _key != "인증 계정":
-                        _ca.write(fmt_followers(_va))
-                        _cb.write(fmt_followers(_vb))
-                    else:
-                        _ca.write(str(_va))
-                        _cb.write(str(_vb))
-
-                _names_a = {p["username"] for p in _prof_a}
-                _names_b = {p["username"] for p in _prof_b}
-                _overlap = _names_a & _names_b
-                st.caption(f"공통 계정: {len(_overlap)}개  |  A만: {len(_names_a - _names_b)}개  |  B만: {len(_names_b - _names_a)}개")
-                if _overlap:
-                    st.write("공통 계정:", ", ".join(f"@{u}" for u in sorted(_overlap)[:10])
-                             + ("..." if len(_overlap) > 10 else ""))
-
-# ── ⑤ 받은 DM 관리 ──────────────────────────────────────────────
-with st.container(border=True, key="dm_card"):
-    st.subheader("📥 받은 DM 관리")
-
-    if not st.session_state.get("ig_logged_in"):
-        st.info("우측 상단 로그인 버튼으로 Instagram 계정을 연결하면 사용할 수 있어요.")
-    else:
-        col_refresh, col_empty = st.columns([1, 5])
-        with col_refresh:
-            if st.button("🔄 새로고침", key="inbox_refresh"):
-                with st.spinner("받은 DM 불러오는 중..."):
-                    threads, err = get_inbox(20)
-                if err:
-                    st.error(err)
-                else:
-                    st.session_state["inbox_threads"] = threads
-                    st.session_state["selected_thread_id"] = None
-
-        if "inbox_threads" not in st.session_state:
-            st.caption("🔄 새로고침 버튼을 눌러 받은 DM을 불러오세요.")
-        elif not st.session_state["inbox_threads"]:
-            st.info("받은 DM이 없어요.")
+        _all_camps = list_campaigns()
+        if not _all_camps:
+            st.caption("아직 저장된 캠페인이 없어요.")
+            st.caption("캠페인을 2개 이상 저장하면 비교할 수 있어요.")
         else:
-            threads = st.session_state["inbox_threads"]
-
-            inbox_col, chat_col = st.columns([1, 2])
-
-            with inbox_col:
-                st.markdown("**대화 목록**")
-                for t in threads:
-                    label = f"{'🔴 ' if t['읽지 않음'] else ''}{t['상대방']}"
-                    preview = t["마지막 메시지"][:30] + ("..." if len(t["마지막 메시지"]) > 30 else "")
-                    if st.button(f"{label}\n{preview}", key=f"thread_{t['thread_id']}", use_container_width=True):
-                        st.session_state["selected_thread_id"] = t["thread_id"]
-                        msgs, err = get_thread(t["thread_id"])
-                        if err:
-                            st.session_state["thread_messages"] = []
-                            st.session_state["thread_error"] = err
-                        else:
-                            st.session_state["thread_messages"] = msgs
-                            st.session_state["thread_error"] = None
+            for _c in _all_camps:
+                _cc1, _cc2, _cc3 = st.columns([5, 1, 1])
+                with _cc1:
+                    st.markdown(
+                        f"<div style='padding:6px 0;font-size:13px;'>"
+                        f"<strong>{_c['label']}</strong>"
+                        f"<span style='color:#6b7280;font-size:12px;margin-left:8px;'>{_c['count']}개 · {_c['saved_at']}</span>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                with _cc2:
+                    if st.button("불러오기", key=f"load_camp_{_c['name']}", use_container_width=True):
+                        _loaded = load_campaign(_c["name"])
+                        if _loaded:
+                            st.session_state["profiles"] = _loaded
+                            st.session_state["search_label"] = _c["label"]
+                            st.rerun()
+                with _cc3:
+                    if st.button("삭제", key=f"del_camp_{_c['name']}", use_container_width=True):
+                        delete_campaign(_c["name"])
                         st.rerun()
 
-            with chat_col:
-                if not st.session_state.get("selected_thread_id"):
-                    st.caption("왼쪽에서 대화를 선택하세요.")
-                else:
-                    selected_id = st.session_state["selected_thread_id"]
-                    partner = next((t["상대방"] for t in threads if t["thread_id"] == selected_id), "")
-                    st.markdown(f"**@{partner} 와의 대화**")
+            if len(_all_camps) >= 2:
+                _camp_names = [c["name"] for c in _all_camps]
+                _camp_labels = {c["name"]: f"{c['label']} ({c['count']}개, {c['saved_at']})" for c in _all_camps}
 
-                    if st.session_state.get("thread_error"):
-                        st.error(st.session_state["thread_error"])
+                _cmp_col1, _cmp_col2 = st.columns(2)
+                with _cmp_col1:
+                    _sel_a = st.selectbox("캠페인 A", _camp_names, format_func=lambda n: _camp_labels[n], key="cmp_a")
+                with _cmp_col2:
+                    _sel_b = st.selectbox("캠페인 B", _camp_names,
+                                          index=min(1, len(_camp_names)-1),
+                                          format_func=lambda n: _camp_labels[n], key="cmp_b")
+
+                if st.button("비교하기", key="cmp_btn", type="primary"):
+                    _prof_a = load_campaign(_sel_a)
+                    _prof_b = load_campaign(_sel_b)
+
+                    def _camp_stats(profiles: list[dict]) -> dict:
+                        if not profiles:
+                            return {}
+                        followers = [p.get("followers", 0) for p in profiles]
+                        verified = sum(1 for p in profiles if p.get("is_verified"))
+                        from dm_templates import classify_group
+                        groups: dict[str, int] = {}
+                        for p in profiles:
+                            g = classify_group(p.get("followers", 0))
+                            groups[g] = groups.get(g, 0) + 1
+                        return {
+                            "계정 수": len(profiles),
+                            "평균 팔로워": int(sum(followers) / len(followers)) if followers else 0,
+                            "최대 팔로워": max(followers) if followers else 0,
+                            "인증 계정": verified,
+                            "주요 그룹": max(groups, key=lambda k: groups[k]) if groups else "-",
+                        }
+
+                    _stats_a = _camp_stats(_prof_a)
+                    _stats_b = _camp_stats(_prof_b)
+
+                    _hdr, _col_a, _col_b = st.columns([2, 2, 2])
+                    _hdr.markdown("**항목**")
+                    _col_a.markdown(f"**{_sel_a}**")
+                    _col_b.markdown(f"**{_sel_b}**")
+
+                    for _key in ["계정 수", "평균 팔로워", "최대 팔로워", "인증 계정", "주요 그룹"]:
+                        _r, _ca, _cb = st.columns([2, 2, 2])
+                        _va = _stats_a.get(_key, "-")
+                        _vb = _stats_b.get(_key, "-")
+                        _r.write(_key)
+                        if isinstance(_va, int) and isinstance(_vb, int) and _key != "인증 계정":
+                            _ca.write(fmt_followers(_va))
+                            _cb.write(fmt_followers(_vb))
+                        else:
+                            _ca.write(str(_va))
+                            _cb.write(str(_vb))
+
+                    _names_a = {p["username"] for p in _prof_a}
+                    _names_b = {p["username"] for p in _prof_b}
+                    _overlap = _names_a & _names_b
+                    st.caption(f"공통 계정: {len(_overlap)}개  |  A만: {len(_names_a - _names_b)}개  |  B만: {len(_names_b - _names_a)}개")
+                    if _overlap:
+                        st.write("공통 계정:", ", ".join(f"@{u}" for u in sorted(_overlap)[:10])
+                                 + ("..." if len(_overlap) > 10 else ""))
+
+    # ── ⑤ 받은 DM 관리 ──────────────────────────────────────────────
+    with st.container(border=True, key="dm_card"):
+        st.subheader("📥 받은 DM 관리")
+
+        if not st.session_state.get("ig_logged_in"):
+            st.info("우측 상단 로그인 버튼으로 Instagram 계정을 연결하면 사용할 수 있어요.")
+        else:
+            col_refresh, col_empty = st.columns([1, 5])
+            with col_refresh:
+                if st.button("🔄 새로고침", key="inbox_refresh"):
+                    with st.spinner("받은 DM 불러오는 중..."):
+                        threads, err = get_inbox(20)
+                    if err:
+                        st.error(err)
                     else:
-                        msgs = st.session_state.get("thread_messages", [])
-                        chat_box = st.container(height=400)
-                        with chat_box:
-                            for m in msgs:
-                                is_me = m["보낸이"] == "나"
-                                align = "right" if is_me else "left"
-                                bg = "#DCF8C6" if is_me else "#F0F0F0"
-                                st.markdown(
-                                    f"<div style='text-align:{align};margin:4px 0;'>"
-                                    f"<span style='background:{bg};padding:6px 12px;border-radius:12px;"
-                                    f"display:inline-block;max-width:80%;word-break:break-word;'>"
-                                    f"{m['내용']}</span></div>",
-                                    unsafe_allow_html=True,
-                                )
+                        st.session_state["inbox_threads"] = threads
+                        st.session_state["selected_thread_id"] = None
 
-                        reply_text = st.text_area("답장 입력", key="reply_input", height=80)
-                        if st.button("📤 답장 보내기", type="primary", use_container_width=True):
-                            if reply_text.strip():
-                                ok, msg = reply_to_thread(selected_id, reply_text.strip())
-                                if ok:
-                                    st.success(msg)
-                                    new_msgs, _ = get_thread(selected_id)
-                                    st.session_state["thread_messages"] = new_msgs
-                                    st.rerun()
-                                else:
-                                    st.error(msg)
+            if "inbox_threads" not in st.session_state:
+                st.caption("🔄 새로고침 버튼을 눌러 받은 DM을 불러오세요.")
+            elif not st.session_state["inbox_threads"]:
+                st.info("받은 DM이 없어요.")
+            else:
+                threads = st.session_state["inbox_threads"]
+
+                inbox_col, chat_col = st.columns([1, 2])
+
+                with inbox_col:
+                    st.markdown("**대화 목록**")
+                    for t in threads:
+                        label = f"{'🔴 ' if t['읽지 않음'] else ''}{t['상대방']}"
+                        preview = t["마지막 메시지"][:30] + ("..." if len(t["마지막 메시지"]) > 30 else "")
+                        if st.button(f"{label}\n{preview}", key=f"thread_{t['thread_id']}", use_container_width=True):
+                            st.session_state["selected_thread_id"] = t["thread_id"]
+                            msgs, err = get_thread(t["thread_id"])
+                            if err:
+                                st.session_state["thread_messages"] = []
+                                st.session_state["thread_error"] = err
                             else:
-                                st.warning("답장 내용을 입력해주세요.")
+                                st.session_state["thread_messages"] = msgs
+                                st.session_state["thread_error"] = None
+                            st.rerun()
+
+                with chat_col:
+                    if not st.session_state.get("selected_thread_id"):
+                        st.caption("왼쪽에서 대화를 선택하세요.")
+                    else:
+                        selected_id = st.session_state["selected_thread_id"]
+                        partner = next((t["상대방"] for t in threads if t["thread_id"] == selected_id), "")
+                        st.markdown(f"**@{partner} 와의 대화**")
+
+                        if st.session_state.get("thread_error"):
+                            st.error(st.session_state["thread_error"])
+                        else:
+                            msgs = st.session_state.get("thread_messages", [])
+                            chat_box = st.container(height=400)
+                            with chat_box:
+                                for m in msgs:
+                                    is_me = m["보낸이"] == "나"
+                                    align = "right" if is_me else "left"
+                                    bg = "#DCF8C6" if is_me else "#F0F0F0"
+                                    st.markdown(
+                                        f"<div style='text-align:{align};margin:4px 0;'>"
+                                        f"<span style='background:{bg};padding:6px 12px;border-radius:12px;"
+                                        f"display:inline-block;max-width:80%;word-break:break-word;'>"
+                                        f"{m['내용']}</span></div>",
+                                        unsafe_allow_html=True,
+                                    )
+
+                            reply_text = st.text_area("답장 입력", key="reply_input", height=80)
+                            if st.button("📤 답장 보내기", type="primary", use_container_width=True):
+                                if reply_text.strip():
+                                    ok, msg = reply_to_thread(selected_id, reply_text.strip())
+                                    if ok:
+                                        st.success(msg)
+                                        new_msgs, _ = get_thread(selected_id)
+                                        st.session_state["thread_messages"] = new_msgs
+                                        st.rerun()
+                                    else:
+                                        st.error(msg)
+                                else:
+                                    st.warning("답장 내용을 입력해주세요.")

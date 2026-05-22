@@ -200,7 +200,7 @@ button, input, select, textarea, label, p, h1, h2, h3, h4, h5, h6 {
     padding-left: 3rem !important;
     padding-right: 3rem !important;
     padding-bottom: 2rem !important;
-    max-width: 1440px !important;
+    max-width: 1280px !important;
 }
 
 @media (max-width: 768px) {
@@ -495,7 +495,82 @@ hr, [data-testid="stDivider"] {
     box-shadow: 0 4px 14px rgba(131,58,180,0.5) !important;
 }
 
-/* ── PC 카드 그리드 ── */
+/* ── 2패널 레이아웃 — 사이드바 패널 ── */
+.st-key-sidebar_panel > div:first-child {
+    background: white;
+    border-radius: 20px;
+    border: 1px solid #e4e0d9;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+    padding: 24px 18px;
+    position: sticky;
+    top: 1rem;
+    min-height: calc(100vh - 3rem);
+}
+
+/* 사이드바 섹션 헤더 */
+.sidebar-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #bbb;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    margin: 18px 0 10px;
+}
+.sidebar-section-label:first-child { margin-top: 0; }
+
+/* 사이드바 모드 선택 라디오 — pill 스타일 */
+.st-key-sidebar_panel .stRadio [data-baseweb="radio"] {
+    margin-bottom: 4px !important;
+}
+.st-key-sidebar_panel .stRadio label {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #444 !important;
+    cursor: pointer !important;
+}
+.st-key-sidebar_panel .stRadio [data-checked="true"] + div label {
+    color: #833ab4 !important;
+    font-weight: 600 !important;
+}
+
+/* 사이드바 내 숫자 입력 작게 */
+.st-key-sidebar_panel .stNumberInput > div > div > input {
+    font-size: 13px !important;
+    padding: 7px 10px !important;
+}
+
+/* 메인 패널 */
+.st-key-main_panel > div:first-child {
+    background: white;
+    border-radius: 20px;
+    border: 1px solid #e4e0d9;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+    padding: 32px 40px;
+}
+
+/* 모드 탭 (메인 패널 상단) */
+.st-key-main_panel .stTabs [data-baseweb="tab-list"] {
+    justify-content: flex-start !important;
+    background: #f5f3ef !important;
+    border-radius: 12px !important;
+    padding: 4px !important;
+    margin-bottom: 24px !important;
+}
+.st-key-main_panel .stTabs [data-baseweb="tab"] {
+    font-size: 13px !important;
+    padding: 8px 20px !important;
+}
+
+/* 탭 패널 내부는 배경 없앰 (메인 패널이 이미 흰색) */
+.st-key-main_panel [data-baseweb="tab-panel"] {
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+}
+
+/* PC 카드 그리드 ── */
 .pc-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -505,11 +580,10 @@ hr, [data-testid="stDivider"] {
     margin-bottom: 0 !important;
 }
 
-/* ── PC 필터 패널 sticky ── */
+/* ── PC 사이드바 컬럼 stretch ── */
 @media (min-width: 900px) {
-    [data-testid="column"]:first-child > div:first-child {
-        position: sticky;
-        top: 1rem;
+    [data-testid="stHorizontalBlock"] {
+        align-items: stretch !important;
     }
 }
 
