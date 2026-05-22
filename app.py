@@ -534,6 +534,28 @@ with tab_ai:
                 st.session_state["_ai_query_pending"] = _cl
                 st.rerun()
 
+    # ── 즐겨찾기 검색어 ──────────────────────────────────────────
+    if "fav_queries" not in st.session_state:
+        st.session_state["fav_queries"] = []
+    _favs = st.session_state["fav_queries"]
+    if "_fav_delete" in st.session_state:
+        _del_idx = st.session_state.pop("_fav_delete")
+        if 0 <= _del_idx < len(_favs):
+            _favs.pop(_del_idx)
+        st.rerun()
+    if _favs:
+        st.markdown("<div style='text-align:center;margin:8px 0 2px;font-size:11px;color:#b07090;'>⭐ 즐겨찾기 →</div>", unsafe_allow_html=True)
+        _fav_cols = st.columns(min(len(_favs), 3))
+        for _fi, _fq in enumerate(_favs[:6]):
+            with _fav_cols[_fi % 3]:
+                _fc1, _fc2 = st.columns([5, 1])
+                if _fc1.button(_fq, key=f"fav_chip_{_fi}", use_container_width=True):
+                    st.session_state["_ai_query_pending"] = _fq
+                    st.rerun()
+                if _fc2.button("✕", key=f"fav_del_{_fi}", use_container_width=True, help="즐겨찾기 삭제"):
+                    st.session_state["_fav_delete"] = _fi
+                    st.rerun()
+
     # ── 팁 섹션 ───────────────────────────────────────────────────
     st.markdown(search_tips(), unsafe_allow_html=True)
 
@@ -601,6 +623,17 @@ with tab_ai:
                     filtered = [p for p in filtered if f_min <= p["followers"] <= f_max]
 
                 status_ai.success(f"'{ai_query.strip()}' 검색 완료 — {len(filtered)}개 계정 발견!")
+
+                # ── 즐겨찾기 저장 버튼 ───────────────────────────
+                _cur_query = ai_query.strip()
+                _favs_now = st.session_state.get("fav_queries", [])
+                if _cur_query and _cur_query not in _favs_now:
+                    if st.button("⭐ 이 검색어 즐겨찾기 저장", key="fav_save_btn"):
+                        _favs_now.insert(0, _cur_query)
+                        st.session_state["fav_queries"] = _favs_now[:10]  # 최대 10개
+                        st.rerun()
+                elif _cur_query in _favs_now:
+                    st.caption("⭐ 즐겨찾기에 저장된 검색어입니다.")
 
                 # 정밀 필터 상태 초기화 (새 검색 시 이전 결과 제거)
                 st.session_state.pop("precise_filtered", None)
