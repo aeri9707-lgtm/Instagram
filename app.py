@@ -92,9 +92,9 @@ def _token_setup_dialog():
     st.markdown("**무료로 시작하는 방법**")
     st.markdown(
         "<div style='background:#f0fdf4;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:14px;line-height:1.7;'>"
-        "1. <a href='https://apify.com/sign-up' target='_blank'>apify.com</a> 에서 무료 가입<br>"
+        "1. <a href='https://console.apify.com/sign-up' target='_blank'>무료 가입하기 →</a> (카드 불필요)<br>"
         "2. 가입 즉시 <b>월 $5 크레딧 자동 지급</b><br>"
-        "3. Settings → Integrations → API token 복사<br>"
+        "3. <a href='https://console.apify.com/settings/integrations' target='_blank'>토큰 발급 페이지 →</a> 에서 API token 복사<br>"
         "4. 아래에 붙여넣기 후 저장"
         "</div>",
         unsafe_allow_html=True,
@@ -140,7 +140,7 @@ def _login_dialog():
         placeholder="apify_api_xxxxxxxx",
         key="dialog_apify_token",
         label_visibility="collapsed",
-        help="apify.com → Settings → Integrations → API token",
+        help="console.apify.com/settings/integrations 에서 복사",
     )
     if _token_input != _cur_token:
         st.session_state["apify_token"] = _token_input
