@@ -595,6 +595,7 @@ with st.container(key="main_panel"):
                             st.rerun()
 
             st.markdown(search_tips(), unsafe_allow_html=True)
+            st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
 
             if st.button("🔍 크리에이터 검색", type="primary", key="ai_btn", use_container_width=True):
                 if not ai_query.strip():
