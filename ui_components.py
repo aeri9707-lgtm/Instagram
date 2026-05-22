@@ -504,7 +504,6 @@ hr, [data-testid="stDivider"] {
     padding: 24px 18px;
     position: sticky;
     top: 1rem;
-    min-height: calc(100vh - 3rem);
 }
 
 /* 사이드바 섹션 헤더 */
@@ -580,10 +579,11 @@ hr, [data-testid="stDivider"] {
     margin-bottom: 0 !important;
 }
 
-/* ── PC 사이드바 컬럼 stretch ── */
+/* ── PC 사이드바 sticky ── */
 @media (min-width: 900px) {
-    [data-testid="stHorizontalBlock"] {
-        align-items: stretch !important;
+    .st-key-sidebar_panel > div:first-child {
+        position: sticky;
+        top: 1rem;
     }
 }
 
