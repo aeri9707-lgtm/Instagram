@@ -239,19 +239,9 @@ def _login_dialog():
 
 
 # ── 네비게이션 바 ─────────────────────────────────────────────────
-_nav_logo, _nav_platform, _nav_login = st.columns([3, 3, 0.7])
+_nav_logo, _nav_login = st.columns([6, 0.7])
 with _nav_logo:
     st.markdown(navbar_logo(), unsafe_allow_html=True)
-with _nav_platform:
-    _np1, _np2 = st.columns(2, gap="small")
-    with _np1:
-        if st.button("📷 IG", key="btn_platform_ig", use_container_width=True):
-            st.session_state["platform"] = "instagram"
-            st.rerun()
-    with _np2:
-        if st.button("♪ TikTok", key="btn_platform_tt", use_container_width=True):
-            st.session_state["platform"] = "tiktok"
-            st.rerun()
 with _nav_login:
     _is_logged = st.session_state.get("ig_logged_in", False)
     _uname     = st.session_state.get("ig_username", "")
@@ -321,6 +311,17 @@ st.markdown(f"""<style>
 # ══════════════════════════════════════════════════════════════
 # 상단 컨트롤 바 (플랫폼 · 모드 · 지역)
 # ══════════════════════════════════════════════════════════════
+with st.container(key="platform_switcher"):
+    _ps1, _ps2 = st.columns(2, gap="small")
+    with _ps1:
+        if st.button("📷 Instagram", key="btn_platform_ig", use_container_width=True):
+            st.session_state["platform"] = "instagram"
+            st.rerun()
+    with _ps2:
+        if st.button("♪ TikTok", key="btn_platform_tt", use_container_width=True):
+            st.session_state["platform"] = "tiktok"
+            st.rerun()
+
 with st.container(key="top_controls"):
     _tc1, _tc2 = st.columns([5, 2], gap="small")
     with _tc1:

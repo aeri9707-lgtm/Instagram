@@ -494,6 +494,29 @@ hr, [data-testid="stDivider"] {
     box-shadow: 0 4px 14px rgba(131,58,180,0.5) !important;
 }
 
+/* ── 플랫폼 스위처 ── */
+.st-key-platform_switcher > div:first-child {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e4e0d9;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    padding: 10px 16px;
+    margin-bottom: 6px;
+}
+.st-key-platform_switcher button {
+    background: #f5f0eb !important;
+    border: 1px solid #e4e0d9 !important;
+    border-radius: 10px !important;
+    color: #555 !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    transition: all 0.15s !important;
+}
+.st-key-platform_switcher button:hover {
+    background: #ede8e2 !important;
+    color: #333 !important;
+}
+
 /* ── 상단 컨트롤 바 ── */
 .st-key-top_controls > div:first-child {
     background: white;
