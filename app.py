@@ -354,7 +354,7 @@ function click_btn(key) {{ window.parent.seg_click(key); }}
 </script>
 """, height=58, scrolling=False)
 
-# ── 모드 탭 (PLATFORM 바깥, main_panel 위에 직접 렌더링) ──────────
+# ── 모드 탭 (components.v1.html → iframe에서 window.parent로 클릭) ──
 if _platform == "instagram":
     _mode_tabs_html = ""
     for mk, ml in _mode_labels_map.items():
@@ -364,17 +364,26 @@ if _platform == "instagram":
         _fw = "700"                          if _a else "500"
         _cl = "#222"                         if _a else "#888"
         _mode_tabs_html += (
-            f"<button onclick=\"(function(){{var b=document.querySelector('.st-key-__seg_{mk} button');if(b)b.click();}})()\" "
+            f"<button onclick=\"click_mode('{mk}')\" "
             f"style='flex:1;border:none;outline:none;cursor:pointer;border-radius:10px;"
             f"padding:10px 4px;font-size:14px;font-family:inherit;white-space:nowrap;"
             f"background:{_bg};box-shadow:{_sh};font-weight:{_fw};color:{_cl};transition:all .15s'>"
             f"{ml}</button>"
         )
-    st.markdown(
-        f"<div style='background:#d6cfc6;border-radius:14px;padding:4px;"
-        f"display:flex;gap:2px;margin-bottom:4px;'>"
-        f"{_mode_tabs_html}</div>",
-        unsafe_allow_html=True,
+    _cv1.html(
+        f"""<style>html,body{{margin:0;padding:0;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;}}</style>
+<div style='background:#d6cfc6;border-radius:14px;padding:4px;display:flex;gap:2px;'>
+{_mode_tabs_html}
+</div>
+<script>
+function click_mode(mk) {{
+  var key = '__seg_' + mk;
+  var btns = window.parent.document.querySelectorAll('.st-key-' + key + ' button');
+  if (btns.length) {{ btns[0].click(); }}
+}}
+</script>""",
+        height=54,
+        scrolling=False,
     )
 
 region_setting = "전체"
