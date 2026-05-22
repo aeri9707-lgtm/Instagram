@@ -364,7 +364,7 @@ if _platform == "instagram":
         _fw = "700"                          if _a else "500"
         _cl = "#222"                         if _a else "#888"
         _mode_tabs_html += (
-            f"<button onclick=\"seg_click('__seg_{mk}')\" "
+            f"<button onclick=\"(function(){{var b=document.querySelector('.st-key-__seg_{mk} button');if(b)b.click();}})()\" "
             f"style='flex:1;border:none;outline:none;cursor:pointer;border-radius:10px;"
             f"padding:10px 4px;font-size:14px;font-family:inherit;white-space:nowrap;"
             f"background:{_bg};box-shadow:{_sh};font-weight:{_fw};color:{_cl};transition:all .15s'>"
