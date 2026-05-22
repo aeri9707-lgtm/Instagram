@@ -559,13 +559,13 @@ with st.container(key="main_panel"):
                 st.session_state["chip_set"] = _random.sample(_CHIPS_POOL, 6)
             _CHIPS = st.session_state["chip_set"]
             st.markdown("<div style='text-align:center;margin:6px 0 2px;font-size:11px;color:#b07090;'>예시 →</div>", unsafe_allow_html=True)
-            _sp1, _ch1, _ch2, _ch3, _sp2 = st.columns([1, 2, 2, 2, 1])
+            _ch1, _ch2, _ch3 = st.columns([1, 1, 1])
             for _ci, (_cc, _cl) in enumerate(zip([_ch1, _ch2, _ch3], _CHIPS[:3])):
                 with _cc:
                     if st.button(_cl, key=f"ai_chip_{_ci}", use_container_width=True):
                         st.session_state["_ai_query_pending"] = _cl
                         st.rerun()
-            _sp3, _ch4, _ch5, _ch6, _sp4 = st.columns([1, 2, 2, 2, 1])
+            _ch4, _ch5, _ch6 = st.columns([1, 1, 1])
             for _ci, (_cc, _cl) in enumerate(zip([_ch4, _ch5, _ch6], _CHIPS[3:])):
                 with _cc:
                     if st.button(_cl, key=f"ai_chip_{_ci+3}", use_container_width=True):

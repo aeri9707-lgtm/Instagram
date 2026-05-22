@@ -564,9 +564,9 @@ hr, [data-testid="stDivider"] {
     border: 1px solid #e4e0d9 !important;
     border-radius: 99px !important;
     color: #555 !important;
-    font-size: 10.5px !important;
+    font-size: 9.5px !important;
     font-weight: 400 !important;
-    padding: 6px 10px !important;
+    padding: 6px 8px !important;
     box-shadow: none !important;
     transition: all 0.15s !important;
     white-space: nowrap !important;
