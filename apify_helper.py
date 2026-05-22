@@ -325,36 +325,15 @@ def search_by_keyword(
     keyword_followers: dict[str, int] = {}
     _last_err: str = ""
 
-    # 방식 A — 관련 키워드 여러 개로 username/bio 검색 (해외면 영어 키워드)
+    # 방식 A — 키워드 4개 + Google 동시 실행 (start → 나중에 결과 수집)
     if _is_global:
         _predefined = _CATEGORY_KEYWORDS_EN.get(kw, [])
         _auto = [f"{kw}influencer", f"{kw}creator"] if not _predefined else []
-        _base_kw = kw  # 영어 원본 그대로
     else:
         _predefined = _CATEGORY_KEYWORDS.get(kw, [])
         _auto = [f"{kw}인플루언서", f"{kw}크리에이터"] if not _predefined else []
-        _base_kw = kw
-    _search_terms = list(dict.fromkeys([_base_kw] + _predefined + _auto))
-    for _i, _term in enumerate(_search_terms[:4]):
-        if progress_callback:
-            progress_callback(f"'{_term}' 계정 검색 중... ({_i+1}/{min(len(_search_terms),4)})")
-        try:
-            run = client.actor(KEYWORD_ACTOR).call(
-                run_input={"query": _term, "maxResults": max(30, max_results * 2)}
-            )
-            if not run:
-                continue
-            for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-                uname = item.get("username", "")
-                if uname:
-                    usernames.add(uname)
-                    fc = _pick_int(item, "followersCount", "followers", "follower_count", "followedByCount")
-                    if fc > 0:
-                        keyword_followers[uname] = fc
-        except Exception as e:
-            _last_err = str(e)
+    _search_terms = list(dict.fromkeys([kw] + _predefined + _auto))
 
-    # 방식 B — Google 검색으로 Instagram 계정 발굴 (팔로워 많은 계정 적중률 높음)
     if _is_global:
         _google_queries = _CATEGORY_GOOGLE_QUERIES_EN.get(kw, [
             f"site:instagram.com {kw} influencer",
@@ -365,26 +344,65 @@ def search_by_keyword(
             f"site:instagram.com {kw} 인플루언서",
             f"instagram {kw} 크리에이터 팔로워",
         ])
+
     if progress_callback:
-        progress_callback(f"Google에서 {kw} 인플루언서 발굴 중...")
+        progress_callback(f"'{kw}' 관련 계정 동시 검색 중...")
+
+    # 모든 액터 동시 start
+    _runs: list[tuple[str, object]] = []  # (type, run)
+    _kw_input = max(30, max_results * 2)
+    for _term in _search_terms[:4]:
+        try:
+            r = client.actor(KEYWORD_ACTOR).start(
+                run_input={"query": _term, "maxResults": _kw_input}
+            )
+            if r:
+                _runs.append(("kw", r))
+        except Exception as e:
+            _last_err = str(e)
+
     try:
-        g_run = client.actor(SEARCH_ACTOR).call(run_input={
+        g_r = client.actor(SEARCH_ACTOR).start(run_input={
             "queries": "\n".join(_google_queries[:2]),
             "maxPagesPerQuery": 1,
             "resultsPerPage": 10,
         })
-        if g_run:
-            _ig_url_re = re.compile(r"instagram\.com/([a-zA-Z0-9_.]{2,30})/?")
-            for item in client.dataset(g_run["defaultDatasetId"]).iterate_items():
-                for result in (item.get("organicResults") or []):
-                    _url = result.get("url") or ""
-                    m = _ig_url_re.search(_url)
-                    if m:
-                        _u = m.group(1)
-                        if _u not in ("p", "reel", "stories", "explore", "tv"):
-                            usernames.add(_u)
+        if g_r:
+            _runs.append(("google", g_r))
     except Exception as e:
         _last_err = str(e)
+
+    # 모든 실행 완료 대기 후 결과 수집
+    if progress_callback:
+        progress_callback(f"검색 완료 대기 중... (총 {len(_runs)}개 동시 실행)")
+
+    _ig_url_re = re.compile(r"instagram\.com/([a-zA-Z0-9_.]{2,30})/?")
+    for _rtype, _run_obj in _runs:
+        try:
+            _finished = client.run(_run_obj["id"]).wait_for_finish()
+            if not _finished:
+                continue
+            dataset_id = _finished.get("defaultDatasetId") or _run_obj.get("defaultDatasetId")
+            if not dataset_id:
+                continue
+            for item in client.dataset(dataset_id).iterate_items():
+                if _rtype == "kw":
+                    uname = item.get("username", "")
+                    if uname:
+                        usernames.add(uname)
+                        fc = _pick_int(item, "followersCount", "followers", "follower_count", "followedByCount")
+                        if fc > 0:
+                            keyword_followers[uname] = fc
+                elif _rtype == "google":
+                    for result in (item.get("organicResults") or []):
+                        _url = result.get("url") or ""
+                        m = _ig_url_re.search(_url)
+                        if m:
+                            _u = m.group(1)
+                            if _u not in ("p", "reel", "stories", "explore", "tv"):
+                                usernames.add(_u)
+        except Exception as e:
+            _last_err = str(e)
 
     if not usernames:
         if "hard limit" in _last_err.lower() or "usage" in _last_err.lower():
