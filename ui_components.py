@@ -507,13 +507,13 @@ hr, [data-testid="stDivider"] {
 
 /* (플랫폼/모드 세그먼트 컨트롤은 components.v1.html로 렌더링) */
 
-/* 메인 패널 */
-.st-key-main_panel > div:first-child {
-    background: white;
-    border-radius: 20px;
-    border: 1px solid #e4e0d9;
-    box-shadow: 0 2px 16px rgba(0,0,0,0.05);
-    padding: 32px 40px;
+/* 메인 패널 — .st-key-main_panel 자체가 stVerticalBlock이므로 직접 타겟 */
+.st-key-main_panel {
+    background: white !important;
+    border-radius: 20px !important;
+    border: 1px solid #e4e0d9 !important;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.05) !important;
+    padding: 28px 36px !important;
 }
 
 /* 모드 탭 (메인 패널 상단) */
