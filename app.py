@@ -320,7 +320,7 @@ _cv1.html(f"""
 <style>
   html,body{{margin:0;padding:0;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;}}
 </style>
-<div style='padding:2px 0 4px 0;'>
+<div style='padding:2px 0 4px 0;display:flex;justify-content:center;'>
   <div style='display:flex;align-items:center;gap:12px;'>
     <span style='font-size:11px;font-weight:700;letter-spacing:1.5px;color:#999;text-transform:uppercase;white-space:nowrap;flex-shrink:0;'>PLATFORM</span>
     <div style='background:#cfc8bf;border-radius:99px;padding:4px;display:inline-flex;gap:2px;'>
