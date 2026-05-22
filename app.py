@@ -354,9 +354,9 @@ function click_btn(key) {{ window.parent.seg_click(key); }}
 </script>
 """, height=58, scrolling=False)
 
-# ── 모드 탭용 HTML 조각 (st.markdown으로 main_panel 안에 직접 렌더링)
-_mode_tabs_html = ""
+# ── 모드 탭 (PLATFORM 바깥, main_panel 위에 직접 렌더링) ──────────
 if _platform == "instagram":
+    _mode_tabs_html = ""
     for mk, ml in _mode_labels_map.items():
         _a = _cur_mode == mk
         _bg = "white"                       if _a else "transparent"
@@ -370,6 +370,12 @@ if _platform == "instagram":
             f"background:{_bg};box-shadow:{_sh};font-weight:{_fw};color:{_cl};transition:all .15s'>"
             f"{ml}</button>"
         )
+    st.markdown(
+        f"<div style='background:#d6cfc6;border-radius:14px;padding:4px;"
+        f"display:flex;gap:2px;margin-bottom:4px;'>"
+        f"{_mode_tabs_html}</div>",
+        unsafe_allow_html=True,
+    )
 
 region_setting = "전체"
 
@@ -398,15 +404,6 @@ st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 # 메인 컨텐츠
 # ══════════════════════════════════════════════════════════════
 with st.container(key="main_panel"):
-    # ── 모드 탭 (흰 카드 안 최상단 — st.markdown으로 직접 렌더링) ──
-    if _platform == "instagram" and _mode_tabs_html:
-        st.markdown(
-            f"<div style='background:#e0d9d0;border-radius:14px;padding:4px;"
-            f"display:flex;gap:2px;margin-bottom:4px;'>"
-            f"{_mode_tabs_html}</div>",
-            unsafe_allow_html=True,
-        )
-
     # ── TikTok ───────────────────────────────────────────
     if _platform == "tiktok":
         tt_tab1, tt_tab2, tt_tab3 = st.tabs(["🔍 Creator Search", "🏢 Brand Reverse", "🔄 Similar Accounts"])
