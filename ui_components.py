@@ -494,156 +494,18 @@ hr, [data-testid="stDivider"] {
     box-shadow: 0 4px 14px rgba(131,58,180,0.5) !important;
 }
 
-/* ════════════════════════════════════
-   플랫폼 세그먼트 컨트롤
-   ════════════════════════════════════ */
-
-/* 라디오 전체를 flex row로: label(PLATFORM) + 옵션그룹 */
-.st-key-platform_row [data-testid="stRadio"] {
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-    margin: 0 !important;
-}
-/* "PLATFORM" 레이블 */
-.st-key-platform_row [data-testid="stRadio"] > label,
-.st-key-platform_row [data-testid="stWidgetLabel"] {
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    letter-spacing: 1.5px !important;
-    color: #aaa !important;
-    text-transform: uppercase !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
-/* 옵션 그룹 — pill 배경 */
-.st-key-platform_row [role="radiogroup"] {
-    background: #f0ebe4 !important;
-    border-radius: 99px !important;
-    padding: 4px !important;
-    display: flex !important;
-    gap: 2px !important;
-}
-/* 각 라디오 옵션 감싸는 label */
-.st-key-platform_row [role="radiogroup"] > label {
-    border-radius: 99px !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    cursor: pointer !important;
-}
-/* 라디오 원형 숨기기 */
-.st-key-platform_row [data-baseweb="radio"] > div:first-child {
-    display: none !important;
-}
-/* 옵션 텍스트 영역 */
-.st-key-platform_row [data-baseweb="radio"] {
-    background: transparent !important;
-    border-radius: 99px !important;
-    padding: 6px 20px !important;
-    transition: all 0.15s !important;
-}
-.st-key-platform_row [data-baseweb="radio"] p,
-.st-key-platform_row [data-baseweb="radio"] span {
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    color: #999 !important;
-    margin: 0 !important;
-}
-/* 선택된 옵션 */
-.st-key-platform_row [role="radiogroup"] > label:has(input:checked) [data-baseweb="radio"] {
-    background: white !important;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.15) !important;
-}
-.st-key-platform_row [role="radiogroup"] > label:has(input:checked) [data-baseweb="radio"] p,
-.st-key-platform_row [role="radiogroup"] > label:has(input:checked) [data-baseweb="radio"] span {
-    font-weight: 700 !important;
-    color: #222 !important;
+/* ── 숨김 세그먼트 버튼 (JS 트리거용) ── */
+.st-key-seg_hidden {
+    position: fixed !important;
+    left: -9999px !important;
+    top: -9999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    z-index: -1 !important;
 }
 
-/* TikTok BETA 배지 — 두 번째 label::after */
-.st-key-platform_row [role="radiogroup"] > label:nth-child(2) {
-    position: relative !important;
-    overflow: visible !important;
-}
-.st-key-platform_row [role="radiogroup"] > label:nth-child(2)::after {
-    content: 'BETA';
-    position: absolute;
-    top: -6px;
-    right: 2px;
-    background: #fff7ed;
-    color: #c2410c;
-    border: 1.5px solid #f77737;
-    font-size: 8px;
-    font-weight: 800;
-    padding: 1px 5px;
-    border-radius: 99px;
-    letter-spacing: 1px;
-    pointer-events: none;
-    line-height: 1.5;
-    z-index: 10;
-}
-
-/* ════════════════════════════════════
-   모드 세그먼트 컨트롤
-   ════════════════════════════════════ */
-
-/* 모드 라디오 전체 */
-.st-key-mode_row [data-testid="stRadio"] {
-    margin: 0 0 8px 0 !important;
-    width: 100% !important;
-}
-/* 옵션 그룹 — pill 배경, full width */
-.st-key-mode_row [role="radiogroup"] {
-    background: #ede8e1 !important;
-    border-radius: 14px !important;
-    padding: 4px !important;
-    display: flex !important;
-    gap: 2px !important;
-    width: 100% !important;
-}
-/* 각 label이 동일 너비로 */
-.st-key-mode_row [role="radiogroup"] > label {
-    flex: 1 !important;
-    border-radius: 10px !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    cursor: pointer !important;
-}
-/* 라디오 원형 숨기기 */
-.st-key-mode_row [data-baseweb="radio"] > div:first-child {
-    display: none !important;
-}
-/* 텍스트 영역 — 가운데 정렬 */
-.st-key-mode_row [data-baseweb="radio"] {
-    background: transparent !important;
-    border-radius: 10px !important;
-    padding: 9px 0 !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    width: 100% !important;
-    transition: all 0.15s !important;
-}
-.st-key-mode_row [data-baseweb="radio"] p,
-.st-key-mode_row [data-baseweb="radio"] span {
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    color: #999 !important;
-    margin: 0 !important;
-    text-align: center !important;
-}
-/* 선택된 모드 탭 */
-.st-key-mode_row [role="radiogroup"] > label:has(input:checked) [data-baseweb="radio"] {
-    background: white !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.12) !important;
-}
-.st-key-mode_row [role="radiogroup"] > label:has(input:checked) [data-baseweb="radio"] p,
-.st-key-mode_row [role="radiogroup"] > label:has(input:checked) [data-baseweb="radio"] span {
-    font-weight: 700 !important;
-    color: #222 !important;
-}
+/* (플랫폼/모드 세그먼트 컨트롤은 components.v1.html로 렌더링) */
 
 /* 메인 패널 */
 .st-key-main_panel > div:first-child {

@@ -279,34 +279,100 @@ _apify_token = st.session_state.get("apify_token") or None
 # ══════════════════════════════════════════════════════════════
 # 플랫폼 선택 + 모드 탭
 # ══════════════════════════════════════════════════════════════
-with st.container(key="platform_row"):
-    _platform_choice = st.radio(
-        "PLATFORM",
-        options=["Instagram", "TikTok"],
-        index=0 if _platform == "instagram" else 1,
-        horizontal=True,
-        key="platform_radio",
-    )
-    _new_platform = "instagram" if _platform_choice == "Instagram" else "tiktok"
-    if _new_platform != _platform:
-        st.session_state["platform"] = _new_platform
-        st.rerun()
+_cur_mode = st.session_state.get("search_mode", "search")
+_mode_labels_map = {"search": "AI 프롬프트", "following": "브랜드 기반", "similar": "유사 검색"}
 
+# ── 화면 밖으로 숨긴 Streamlit 버튼들 (JS로 클릭 트리거) ──────────
+with st.container(key="seg_hidden"):
+    _sc = st.columns(5)
+    with _sc[0]:
+        _btn_ig       = st.button("_ig",       key="__seg_ig")
+    with _sc[1]:
+        _btn_tt       = st.button("_tt",       key="__seg_tt")
+    with _sc[2]:
+        _btn_search   = st.button("_search",   key="__seg_search")
+    with _sc[3]:
+        _btn_following= st.button("_following",key="__seg_following")
+    with _sc[4]:
+        _btn_similar  = st.button("_similar",  key="__seg_similar")
+
+if _btn_ig and _platform != "instagram":
+    st.session_state["platform"] = "instagram"; st.rerun()
+if _btn_tt and _platform != "tiktok":
+    st.session_state["platform"] = "tiktok"; st.rerun()
+if _btn_search and _cur_mode != "search":
+    st.session_state["search_mode"] = "search"; st.rerun()
+if _btn_following and _cur_mode != "following":
+    st.session_state["search_mode"] = "following"; st.rerun()
+if _btn_similar and _cur_mode != "similar":
+    st.session_state["search_mode"] = "similar"; st.rerun()
+
+# ── 시각 UI (components.v1.html → iframe에서 JS 실행) ─────────────
+_ps_ig = "white;box-shadow:0 1px 5px rgba(0,0,0,.15)" if _platform == "instagram" else "transparent"
+_ps_tt = "white;box-shadow:0 1px 5px rgba(0,0,0,.15)" if _platform == "tiktok"    else "transparent"
+_fw_ig = "700" if _platform == "instagram" else "500"
+_fw_tt = "700" if _platform == "tiktok"    else "500"
+_cl_ig = "#222" if _platform == "instagram" else "#999"
+_cl_tt = "#222" if _platform == "tiktok"    else "#999"
+
+_mode_tabs_html = ""
 if _platform == "instagram":
-    with st.container(key="mode_row"):
-        _mode_opts = {"search": "AI 프롬프트", "following": "브랜드 기반", "similar": "유사 검색"}
-        _mode_sel = st.radio(
-            "",
-            options=list(_mode_opts.values()),
-            index=list(_mode_opts.keys()).index(st.session_state["search_mode"]),
-            horizontal=True,
-            label_visibility="collapsed",
-            key="mode_radio",
+    for mk, ml in _mode_labels_map.items():
+        _a = _cur_mode == mk
+        _bg  = "white"        if _a else "transparent"
+        _sh  = "0 1px 4px rgba(0,0,0,.12)" if _a else "none"
+        _fw  = "700"          if _a else "500"
+        _cl  = "#222"         if _a else "#888"
+        _mode_tabs_html += (
+            f"<button id='mt_{mk}' onclick=\"click_btn('__seg_{mk}')\" "
+            f"style='flex:1;border:none;outline:none;cursor:pointer;border-radius:10px;"
+            f"padding:10px 4px;font-size:14px;font-family:inherit;white-space:nowrap;"
+            f"background:{_bg};box-shadow:{_sh};font-weight:{_fw};color:{_cl};transition:all .15s'>"
+            f"{ml}</button>"
         )
-        _new_mode = [k for k, v in _mode_opts.items() if v == _mode_sel][0]
-        if _new_mode != st.session_state["search_mode"]:
-            st.session_state["search_mode"] = _new_mode
-            st.rerun()
+_mode_row_html = (
+    f"<div style='background:#ede8e1;border-radius:14px;padding:4px;display:flex;gap:2px;margin-top:8px;'>"
+    f"{_mode_tabs_html}</div>"
+    if _platform == "instagram" else ""
+)
+
+import streamlit.components.v1 as _cv1
+_cv1.html(f"""
+<style>
+  body{{margin:0;padding:0;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
+</style>
+<div style='padding:2px 0 4px 0;'>
+  <div style='display:flex;align-items:center;gap:12px;'>
+    <span style='font-size:11px;font-weight:700;letter-spacing:1.5px;color:#aaa;text-transform:uppercase;white-space:nowrap;'>PLATFORM</span>
+    <div style='background:#f0ebe4;border-radius:99px;padding:4px;display:inline-flex;gap:2px;'>
+      <button onclick="click_btn('__seg_ig')"
+        style='border:none;outline:none;cursor:pointer;border-radius:99px;padding:7px 22px;
+               font-size:14px;font-family:inherit;transition:all .15s;
+               background:{_ps_ig};font-weight:{_fw_ig};color:{_cl_ig};'>
+        📷 Instagram
+      </button>
+      <div style='position:relative;display:inline-block;'>
+        <button onclick="click_btn('__seg_tt')"
+          style='border:none;outline:none;cursor:pointer;border-radius:99px;padding:7px 22px;
+                 font-size:14px;font-family:inherit;transition:all .15s;
+                 background:{_ps_tt};font-weight:{_fw_tt};color:{_cl_tt};'>
+          ♪ TikTok
+        </button>
+        <span style='position:absolute;top:-6px;right:2px;background:#fff7ed;color:#c2410c;
+                     border:1.5px solid #f77737;font-size:8px;font-weight:800;padding:1px 5px;
+                     border-radius:99px;letter-spacing:1px;line-height:1.5;pointer-events:none;'>BETA</span>
+      </div>
+    </div>
+  </div>
+  {_mode_row_html}
+</div>
+<script>
+function click_btn(key) {{
+  var btns = window.parent.document.querySelectorAll('.st-key-' + key + ' button');
+  if (btns.length) {{ btns[0].click(); }}
+}}
+</script>
+""", height=110 if _platform == "instagram" else 60, scrolling=False)
 
 region_setting = "전체"
 
