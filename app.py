@@ -239,9 +239,19 @@ def _login_dialog():
 
 
 # ── 네비게이션 바 ─────────────────────────────────────────────────
-_nav_logo, _nav_space, _nav_login = st.columns([3, 7, 0.7])
+_nav_logo, _nav_platform, _nav_login = st.columns([3, 3, 0.7])
 with _nav_logo:
     st.markdown(navbar_logo(), unsafe_allow_html=True)
+with _nav_platform:
+    _np1, _np2 = st.columns(2, gap="small")
+    with _np1:
+        if st.button("📷 IG", key="btn_platform_ig", use_container_width=True):
+            st.session_state["platform"] = "instagram"
+            st.rerun()
+    with _np2:
+        if st.button("♪ TikTok", key="btn_platform_tt", use_container_width=True):
+            st.session_state["platform"] = "tiktok"
+            st.rerun()
 with _nav_login:
     _is_logged = st.session_state.get("ig_logged_in", False)
     _uname     = st.session_state.get("ig_username", "")
@@ -312,18 +322,8 @@ st.markdown(f"""<style>
 # 상단 컨트롤 바 (플랫폼 · 모드 · 지역)
 # ══════════════════════════════════════════════════════════════
 with st.container(key="top_controls"):
-    _tc1, _tc2, _tc3 = st.columns([2, 5, 2], gap="small")
+    _tc1, _tc2 = st.columns([5, 2], gap="small")
     with _tc1:
-        _p1, _p2 = st.columns(2, gap="small")
-        with _p1:
-            if st.button("📷 IG", key="btn_platform_ig", use_container_width=True):
-                st.session_state["platform"] = "instagram"
-                st.rerun()
-        with _p2:
-            if st.button("♪ TikTok", key="btn_platform_tt", use_container_width=True):
-                st.session_state["platform"] = "tiktok"
-                st.rerun()
-    with _tc2:
         if _platform == "instagram":
             _mode_labels = {
                 "search":    "🔍 크리에이터 검색",
@@ -339,7 +339,7 @@ with st.container(key="top_controls"):
             if _new_mode != st.session_state["search_mode"]:
                 st.session_state["search_mode"] = _new_mode
                 st.rerun()
-    with _tc3:
+    with _tc2:
         if _platform == "instagram":
             region_setting = st.radio(
                 "지역", options=["전체", "한국", "해외"], horizontal=True, key="region_setting",
