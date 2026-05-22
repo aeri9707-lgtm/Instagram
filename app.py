@@ -307,7 +307,7 @@ if _btn_following and _cur_mode != "following":
 if _btn_similar and _cur_mode != "similar":
     st.session_state["search_mode"] = "similar"; st.rerun()
 
-# ── 시각 UI (components.v1.html → iframe에서 JS 실행) ─────────────
+# ── PLATFORM 행 (흰 카드 바깥) ────────────────────────────────────
 _ps_ig = "white;box-shadow:0 1px 5px rgba(0,0,0,.15)" if _platform == "instagram" else "transparent"
 _ps_tt = "white;box-shadow:0 1px 5px rgba(0,0,0,.15)" if _platform == "tiktok"    else "transparent"
 _fw_ig = "700" if _platform == "instagram" else "500"
@@ -315,33 +315,12 @@ _fw_tt = "700" if _platform == "tiktok"    else "500"
 _cl_ig = "#222" if _platform == "instagram" else "#999"
 _cl_tt = "#222" if _platform == "tiktok"    else "#999"
 
-_mode_tabs_html = ""
-if _platform == "instagram":
-    for mk, ml in _mode_labels_map.items():
-        _a = _cur_mode == mk
-        _bg  = "white"        if _a else "transparent"
-        _sh  = "0 1px 4px rgba(0,0,0,.12)" if _a else "none"
-        _fw  = "700"          if _a else "500"
-        _cl  = "#222"         if _a else "#888"
-        _mode_tabs_html += (
-            f"<button id='mt_{mk}' onclick=\"click_btn('__seg_{mk}')\" "
-            f"style='flex:1;border:none;outline:none;cursor:pointer;border-radius:10px;"
-            f"padding:10px 4px;font-size:14px;font-family:inherit;white-space:nowrap;"
-            f"background:{_bg};box-shadow:{_sh};font-weight:{_fw};color:{_cl};transition:all .15s'>"
-            f"{ml}</button>"
-        )
-_mode_row_html = (
-    f"<div style='background:#cfc8bf;border-radius:14px;padding:4px;display:flex;gap:2px;margin-top:8px;width:100%;box-sizing:border-box;'>"
-    f"{_mode_tabs_html}</div>"
-    if _platform == "instagram" else ""
-)
-
 import streamlit.components.v1 as _cv1
 _cv1.html(f"""
 <style>
   html,body{{margin:0;padding:0;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;}}
 </style>
-<div style='padding:2px 0 6px 0;width:100%;'>
+<div style='padding:2px 0 4px 0;'>
   <div style='display:flex;align-items:center;gap:12px;'>
     <span style='font-size:11px;font-weight:700;letter-spacing:1.5px;color:#999;text-transform:uppercase;white-space:nowrap;flex-shrink:0;'>PLATFORM</span>
     <div style='background:#cfc8bf;border-radius:99px;padding:4px;display:inline-flex;gap:2px;'>
@@ -364,7 +343,6 @@ _cv1.html(f"""
       </div>
     </div>
   </div>
-  {_mode_row_html}
 </div>
 <script>
 function click_btn(key) {{
@@ -372,7 +350,24 @@ function click_btn(key) {{
   if (btns.length) {{ btns[0].click(); }}
 }}
 </script>
-""", height=118 if _platform == "instagram" else 62, scrolling=False)
+""", height=58, scrolling=False)
+
+# ── 모드 탭용 HTML 조각 (main_panel 안에서 렌더링) ──────────────────
+_mode_tabs_html = ""
+if _platform == "instagram":
+    for mk, ml in _mode_labels_map.items():
+        _a = _cur_mode == mk
+        _bg = "white"                       if _a else "transparent"
+        _sh = "0 1px 4px rgba(0,0,0,.12)"  if _a else "none"
+        _fw = "700"                          if _a else "500"
+        _cl = "#222"                         if _a else "#888"
+        _mode_tabs_html += (
+            f"<button onclick=\"click_btn('__seg_{mk}')\" "
+            f"style='flex:1;border:none;outline:none;cursor:pointer;border-radius:10px;"
+            f"padding:10px 4px;font-size:14px;font-family:inherit;white-space:nowrap;"
+            f"background:{_bg};box-shadow:{_sh};font-weight:{_fw};color:{_cl};transition:all .15s'>"
+            f"{ml}</button>"
+        )
 
 region_setting = "전체"
 
@@ -401,6 +396,23 @@ st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 # 메인 컨텐츠
 # ══════════════════════════════════════════════════════════════
 with st.container(key="main_panel"):
+    # ── 모드 탭 (흰 카드 안 최상단) ──────────────────────
+    if _platform == "instagram" and _mode_tabs_html:
+        _cv1.html(f"""
+<style>
+  html,body{{margin:0;padding:0;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden;}}
+</style>
+<div style='background:#e8e2db;border-radius:14px;padding:4px;display:flex;gap:2px;width:100%;box-sizing:border-box;'>
+  {_mode_tabs_html}
+</div>
+<script>
+function click_btn(key) {{
+  var btns = window.parent.document.querySelectorAll('.st-key-' + key + ' button');
+  if (btns.length) {{ btns[0].click(); }}
+}}
+</script>
+""", height=54, scrolling=False)
+
     # ── TikTok ───────────────────────────────────────────
     if _platform == "tiktok":
         tt_tab1, tt_tab2, tt_tab3 = st.tabs(["🔍 Creator Search", "🏢 Brand Reverse", "🔄 Similar Accounts"])
