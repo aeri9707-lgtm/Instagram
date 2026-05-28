@@ -532,6 +532,20 @@ with st.container(key="main_panel"):
                 placeholder="찾고 싶은 인플루언서를 설명해주세요.\n예시) '팔로워 1만~5만의 K-뷰티 스킨케어 전문가'",
                 key="ai_query", height=90, label_visibility="collapsed",
             )
+            _region_col, _limit_col = st.columns([2, 1])
+            with _region_col:
+                _manual_region = st.radio(
+                    "지역", options=["전체", "한국", "해외"],
+                    horizontal=True, key="ai_region",
+                    label_visibility="collapsed",
+                )
+            with _limit_col:
+                ai_limit = st.select_slider(
+                    "검색 수", options=[20, 50, 100], value=st.session_state.get("ai_limit", 50),
+                    key="ai_limit_sel", label_visibility="collapsed",
+                    help="많을수록 결과↑, 크레딧↑",
+                )
+                st.session_state["ai_limit"] = ai_limit
 
             _CHIPS_POOL = [
                 "20대 여성 스킨케어 뷰티 마이크로",
@@ -613,7 +627,13 @@ with st.container(key="main_panel"):
                     _token_setup_dialog()
                 else:
                     parsed = parse_nl_query(ai_query.strip())
+                    # 수동 지역 선택이 전체가 아니면 NLP 감지보다 우선 적용
+                    _effective_region = _manual_region if _manual_region != "전체" else parsed["region"]
+                    # 팔로워 조건이 있으면 필터링 손실 대비 fetch 수 2배
+                    _fetch_limit = ai_limit * 2 if parsed["follower_min"] > 0 else ai_limit
                     tags = parsed["detected_tags"]
+                    if _manual_region != "전체" and f"지역: {_manual_region}" not in tags:
+                        tags = [t for t in tags if not t.startswith("지역:")] + [f"지역: {_manual_region}"]
                     tag_html = " ".join(
                         f"<span style='background:#e8f4fd;color:#0d6efd;padding:3px 10px;"
                         f"border-radius:20px;font-size:13px;margin:2px;display:inline-block;'>{t}</span>"
@@ -621,13 +641,13 @@ with st.container(key="main_panel"):
                     ) if tags else "<span style='color:#999'>자동 감지된 조건 없음 — 원문 키워드로 검색해요</span>"
                     st.markdown(f"**감지된 조건:** {tag_html}", unsafe_allow_html=True)
                     _hi_label = "무제한" if parsed["follower_max"] > 10_000_000 else f"{parsed['follower_max']:,}"
-                    st.caption(f"검색 키워드: **{parsed['keyword']}** | 팔로워 범위: {parsed['follower_min']:,} ~ {_hi_label}")
+                    st.caption(f"검색 키워드: **{parsed['keyword']}** | 팔로워 범위: {parsed['follower_min']:,} ~ {_hi_label} | 지역: {_effective_region}")
                     status_ai = st.empty()
                     bar_ai = st.progress(0)
                     def ai_progress(msg):
                         status_ai.info(f"⏳ {msg}")
                         bar_ai.progress(50)
-                    profiles_raw, err = search_by_keyword(parsed["keyword"], ai_limit, ai_progress, apify_token=_apify_token, region=parsed["region"])
+                    profiles_raw, err = search_by_keyword(parsed["keyword"], _fetch_limit, ai_progress, apify_token=_apify_token, region=_effective_region)
                     bar_ai.progress(100)
                     if err:
                         status_ai.empty()
@@ -643,8 +663,8 @@ with st.container(key="main_panel"):
                     else:
                         f_min, f_max = parsed["follower_min"], parsed["follower_max"]
                         filtered = [p for p in profiles_raw if f_min <= p["followers"] <= f_max]
-                        if parsed["region"] != "전체":
-                            filtered = [p for p in filtered if p.get("region", "해외") == parsed["region"]]
+                        if _effective_region != "전체":
+                            filtered = [p for p in filtered if p.get("region", "해외") == _effective_region]
                         zero_users = [p["username"] for p in filtered if p["followers"] == 0]
                         if zero_users and st.session_state.get("ig_logged_in"):
                             status_ai.info(f"⏳ 팔로워 미확인 {len(zero_users)}개 계정 보완 중...")
@@ -692,8 +712,8 @@ with st.container(key="main_panel"):
                                 if _pf_err:
                                     st.error(_pf_err)
                                 else:
-                                    if parsed["region"] != "전체":
-                                        _precise = [p for p in _precise if p.get("region", "해외") == parsed["region"]]
+                                    if _effective_region != "전체":
+                                        _precise = [p for p in _precise if p.get("region", "해외") == _effective_region]
                                     st.session_state["precise_filtered"] = _precise
                                     _pf_status.success(f"정밀 필터 완료 — {len(_precise)}개 계정 확인!")
                                     st.rerun()
