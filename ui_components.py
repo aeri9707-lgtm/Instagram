@@ -1,4 +1,6 @@
 """재사용 HTML/SVG 컴포넌트 — Streamlit unsafe_allow_html 전용"""
+import html
+from urllib.parse import quote
 
 
 # ── 색상 팔레트 ────────────────────────────────────────────────────────
@@ -121,10 +123,16 @@ def profile_card(p: dict, dm_text: str = "", cost: str = "") -> str:
     else:
         f_str = f"{followers_raw:,}"
 
-    cat = p.get("category", "") or p.get("카테고리", "")
-    region = p.get("region", "")
-    bio = (p.get("bio", "") or "")[:60]
-    url = p.get("profile_url", f"https://www.instagram.com/{p.get('username', '')}/")
+    username_raw = str(p.get("username", "") or "")
+    username = html.escape(username_raw)
+    full_name = html.escape(str(p.get("full_name", "") or ""))
+    cat = html.escape(str(p.get("category", "") or p.get("카테고리", "") or ""))
+    region = html.escape(str(p.get("region", "") or ""))
+    bio = html.escape(str(p.get("bio", "") or "")[:60])
+    safe_username_path = quote(username_raw, safe="._")
+    url = f"https://www.instagram.com/{safe_username_path}/"
+    safe_cost = html.escape(str(cost))
+    safe_dm_text = html.escape(str(dm_text))
 
     cat_chip = (
         f"<span style='background:#f0ebfa;color:#6d28d9;padding:2px 9px;"
@@ -138,14 +146,14 @@ def profile_card(p: dict, dm_text: str = "", cost: str = "") -> str:
     )
     cost_line = (
         f"<div style='margin-top:8px;font-size:12px;color:{TEXT_SUB};'>"
-        f"예상 단가 <strong style='color:{TEXT_MAIN};'>{cost}</strong></div>"
+        f"예상 단가 <strong style='color:{TEXT_MAIN};'>{safe_cost}</strong></div>"
         if cost else ""
     )
     dm_line = (
         f"<div style='margin-top:10px;padding:10px 14px;"
         f"background:{BG_SUBTLE};border-radius:10px;border-left:3px solid #c4b5fd;"
         f"font-size:12px;color:{TEXT_SUB};line-height:1.6;'>"
-        f"{dm_text[:120]}{'…' if len(dm_text) > 120 else ''}"
+        f"{safe_dm_text[:120]}{'…' if len(safe_dm_text) > 120 else ''}"
         f"</div>"
         if dm_text else ""
     )
@@ -157,8 +165,8 @@ def profile_card(p: dict, dm_text: str = "", cost: str = "") -> str:
         f"<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
         f"<div>"
         f"<a href='{url}' target='_blank' style='font-size:15px;font-weight:700;"
-        f"color:{TEXT_MAIN};text-decoration:none;'>{verified}@{p.get('username','')}</a>"
-        f"<span style='font-size:13px;color:{TEXT_SUB};margin-left:8px;'>{p.get('full_name','')}</span>"
+        f"color:{TEXT_MAIN};text-decoration:none;' rel='noopener noreferrer'>{verified}@{username}</a>"
+        f"<span style='font-size:13px;color:{TEXT_SUB};margin-left:8px;'>{full_name}</span>"
         f"</div>"
         f"<div style='font-size:18px;font-weight:700;color:{TEXT_MAIN};'>{f_str}</div>"
         f"</div>"

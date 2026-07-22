@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import html
 import os
 import streamlit as st
 import pandas as pd
@@ -18,11 +21,38 @@ st.set_page_config(
     page_icon="📸",
     layout="centered",
 )
+
+# Public test deployments are search-only by default. This prevents Instagram
+# credentials and DM sessions from being shared through the server process.
+PUBLIC_TEST_MODE = os.getenv("PUBLIC_TEST_MODE", "1").strip().lower() not in {
+    "0", "false", "no", "off",
+}
+_TEST_ACCESS_SHA256 = "fcb52c7d763d942d6c0c499896435d292e7d8c219f843265a922f653a386f078"
+
+
+def _require_test_access() -> None:
+    if not PUBLIC_TEST_MODE or st.session_state.get("test_access_granted"):
+        return
+
+    st.title("🔒 그로우핏 테스트")
+    st.caption("전달받은 테스트 코드를 입력해주세요.")
+    code = st.text_input("테스트 코드", type="password", autocomplete="off")
+    if st.button("입장하기", type="primary", use_container_width=True):
+        digest = hashlib.sha256(code.encode("utf-8")).hexdigest()
+        if hmac.compare_digest(digest, _TEST_ACCESS_SHA256):
+            st.session_state["test_access_granted"] = True
+            st.rerun()
+        else:
+            st.error("테스트 코드가 올바르지 않습니다.")
+    st.stop()
+
+
+_require_test_access()
 st.markdown(global_css(), unsafe_allow_html=True)
 
 
 # 저장된 세션 자동 복원 (처음 한 번만)
-if not st.session_state.get("_ig_session_load_attempted"):
+if not PUBLIC_TEST_MODE and not st.session_state.get("_ig_session_load_attempted"):
     st.session_state["_ig_session_load_attempted"] = True
     if not st.session_state.get("ig_logged_in"):
         _ok, _uname = load_session()
@@ -148,6 +178,10 @@ def _login_dialog():
         st.caption("✅ 토큰 저장됨 — 본인 계정 크레딧으로 검색합니다.")
     else:
         st.caption("[Apify 토큰 발급받기 →](https://console.apify.com/settings/integrations)")
+
+    if PUBLIC_TEST_MODE:
+        st.info("테스트 링크에서는 안전을 위해 Instagram 로그인·DM·팔로우 기능을 잠가두었습니다.")
+        return
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
@@ -1339,7 +1373,7 @@ with st.container(border=True, key="dm_card"):
                                     f"<div style='text-align:{align};margin:4px 0;'>"
                                     f"<span style='background:{bg};padding:6px 12px;border-radius:12px;"
                                     f"display:inline-block;max-width:80%;word-break:break-word;'>"
-                                    f"{m['내용']}</span></div>",
+                                    f"{html.escape(str(m['내용']))}</span></div>",
                                     unsafe_allow_html=True,
                                 )
 

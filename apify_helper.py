@@ -62,6 +62,31 @@ _CATEGORY_KEYWORDS_EN: dict[str, list[str]] = {
     "사진":     ["photographyinfluencer", "photographer", "photoinfluencer"],
 }
 
+# 해외 검색 전용 해시태그 (hashtag actor 병행 실행용)
+_HASHTAG_TERMS_EN: dict[str, list[str]] = {
+    "뷰티":     ["beautyinfluencer", "makeupblogger", "skincareroutine", "beautycontentcreator"],
+    "육아":     ["mominfluencer", "momlife", "parentingblogger", "momcreator"],
+    "다이어트": ["fitnessinfluencer", "gymlife", "workoutmotivation", "fitnesscreator"],
+    "요리":     ["foodblogger", "foodinfluencer", "recipecreator", "homecooking"],
+    "패션":     ["fashionblogger", "fashioninfluencer", "styleinfluencer", "outfitoftheday"],
+    "여행":     ["travelblogger", "travelinfluencer", "wanderlust", "travelcreator"],
+    "인테리어": ["homedecor", "interiordesign", "homeinfluencer", "homestyle"],
+    "반려동물": ["petinfluencer", "dogsofinstagram", "catsofinstagram", "petblogger"],
+    "재테크":   ["financeblogger", "personalfinance", "moneyblogger", "investingtips"],
+    "게임":     ["gaminginfluencer", "gamer", "twitchstreamer", "gamingcontent"],
+    "음악":     ["musicinfluencer", "singersongwriter", "musiccreator", "indieartist"],
+    "사진":     ["photographyinfluencer", "photographer", "photooftheday", "portraitphotography"],
+}
+
+# 해외 계정 positive 신호 — 이 단어가 바이오에 있으면 확실히 해외
+_OVERSEAS_SIGNALS = frozenset([
+    "new york", "los angeles", "london", "paris", "tokyo", "sydney",
+    "toronto", "dubai", "singapore", "berlin", "amsterdam", "nyc",
+    "based in", "living in", "📍", "usa", "uk ", " uk,", "aus ",
+    "canada", "germany", "france", "italy", "spain", "brazil",
+    "india", "japan", "thailand", "indonesia", "malaysia",
+])
+
 # Google 검색용 쿼리 템플릿 (한국)
 _CATEGORY_GOOGLE_QUERIES: dict[str, list[str]] = {
     "육아":     ["site:instagram.com 육아맘 팔로워", "instagram 육아 인플루언서 맘크리에이터"],
@@ -214,8 +239,12 @@ def _has_hangul(text: str) -> bool:
 
 
 def _detect_region(bio: str, full_name: str, username: str, country_code: str) -> str:
-    if country_code and country_code.upper() == "KR":
+    cc = (country_code or "").upper()
+    if cc == "KR":
         return "한국"
+    # KR 이외 명시적 국가코드 → 확실히 해외
+    if cc and cc not in ("", "KR"):
+        return "해외"
     if _has_hangul(bio) or _has_hangul(full_name) or _has_hangul(username):
         return "한국"
     text = f"{bio} {full_name}".lower()
@@ -224,6 +253,9 @@ def _detect_region(bio: str, full_name: str, username: str, country_code: str) -
     uname_lower = username.lower()
     if any(pat in uname_lower for pat in _KR_USERNAME_PATTERNS):
         return "한국"
+    # 해외 positive 신호
+    if any(sig in text for sig in _OVERSEAS_SIGNALS):
+        return "해외"
     return "해외"
 
 
@@ -386,6 +418,19 @@ def search_by_keyword(
     except Exception as e:
         _last_err = str(e)
 
+    # 해외 모드: 카테고리별 영어 해시태그 액터 2개 병행 실행
+    if _is_global:
+        _ht_tags = _HASHTAG_TERMS_EN.get(kw, [f"{kw}influencer", f"{kw}creator"])
+        for _ht in _ht_tags[:2]:
+            try:
+                ht_r = client.actor(HASHTAG_ACTOR).start(
+                    run_input={"hashtags": [_ht], "resultsLimit": max(30, _kw_input // 2)}
+                )
+                if ht_r:
+                    _runs.append(("hashtag", ht_r))
+            except Exception as e:
+                _last_err = str(e)
+
     # 모든 실행 완료 대기 후 결과 수집
     if progress_callback:
         progress_callback(f"검색 완료 대기 중... (총 {len(_runs)}개 동시 실행)")
@@ -415,6 +460,13 @@ def search_by_keyword(
                             _u = m.group(1)
                             if _u not in ("p", "reel", "stories", "explore", "tv"):
                                 usernames.add(_u)
+                elif _rtype == "hashtag":
+                    uname = (
+                        item.get("ownerUsername")
+                        or (item.get("owner") or {}).get("username", "")
+                    )
+                    if uname:
+                        usernames.add(uname)
         except Exception as e:
             _last_err = str(e)
 

@@ -1,15 +1,33 @@
 import time
 import random
 from pathlib import Path
-from instagrapi import Client
-from instagrapi.exceptions import BadPassword, TwoFactorRequired, ChallengeRequired
+from typing import Any
 
-_client: Client | None = None
+try:
+    from instagrapi import Client
+    from instagrapi.exceptions import BadPassword, TwoFactorRequired, ChallengeRequired
+    _INSTAGRAPI_AVAILABLE = True
+except ImportError:
+    Client = None  # type: ignore[assignment]
+    _INSTAGRAPI_AVAILABLE = False
+
+    class BadPassword(Exception):
+        pass
+
+    class TwoFactorRequired(Exception):
+        pass
+
+    class ChallengeRequired(Exception):
+        pass
+
+_client: Any = None
 SESSION_FILE = Path(".ig_session.json")
 
 
 def login(username: str, password: str) -> tuple[bool, str]:
     global _client
+    if not _INSTAGRAPI_AVAILABLE or Client is None:
+        return False, "공개 테스트에서는 Instagram 로그인이 비활성화되어 있어요."
     try:
         cl = Client()
         cl.delay_range = [2, 5]
@@ -30,6 +48,8 @@ def login(username: str, password: str) -> tuple[bool, str]:
 def load_session() -> tuple[bool, str]:
     """저장된 세션 복원. 반환: (성공 여부, username)"""
     global _client
+    if not _INSTAGRAPI_AVAILABLE or Client is None:
+        return False, ""
     if not SESSION_FILE.exists():
         return False, ""
     try:
