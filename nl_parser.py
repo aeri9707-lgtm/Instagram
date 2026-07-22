@@ -6,7 +6,7 @@ _CATEGORY_MAP: list[tuple[list[str], str]] = [
     (["뷰티", "화장", "스킨케어", "메이크업", "beauty", "코스메틱"], "뷰티"),
     (["패션", "코디", "ootd", "옷", "스타일", "fashion"], "패션"),
     (["육아", "아기", "아이", "엄마", "맘", "baby", "mom"], "육아"),
-    (["다이어트", "헬스", "운동", "피트니스", "gym", "fitness", "workout"], "다이어트"),
+    (["다이어트", "헬스", "운동", "피트니스", "gym", "fitness", "workout"], "헬스"),
     (["요리", "음식", "맛집", "먹방", "레시피", "food", "cooking"], "요리"),
     (["여행", "travel", "트립", "trip"], "여행"),
     (["인테리어", "홈", "home", "interior", "집꾸미기"], "인테리어"),
@@ -61,7 +61,11 @@ def _detect_follower_range(text: str) -> tuple[int, int] | None:
         if lo_n:
             lo = _to_int(lo_n, lo_u)
             if op in ("~", "-") and hi_n:
-                hi = _to_int(hi_n, hi_u)
+                # "1~5만"처럼 단위가 한쪽에만 있으면 양쪽에 같은 단위를 적용.
+                shared_lo_unit = lo_u or hi_u
+                shared_hi_unit = hi_u or lo_u
+                lo = _to_int(lo_n, shared_lo_unit)
+                hi = _to_int(hi_n, shared_hi_unit)
                 return (lo, hi)
             elif op == "이상":
                 return (lo, 999_999_999)
@@ -95,17 +99,21 @@ def parse_nl_query(text: str) -> dict:
     # 입력을 공백 기준으로 토큰화 (한글/영문 단어 단위)
     _tokens = set(re.findall(r"[가-힣a-zA-Z]+", t))
 
-    # 카테고리 — 짧은 키워드(≤2자)는 토큰 단위 일치, 긴 키워드는 부분 문자열 허용
-    keyword = ""
+    # 카테고리 — 문장에 먼저 등장한 긍정 카테고리를 선택한다.
+    # "육아 제외"처럼 뒤에 부정 표현이 붙은 카테고리는 검색 주제로 사용하지 않는다.
+    category_matches: list[tuple[int, str]] = []
+    negators = ("제외", "빼고", "빼줘", "말고", "아닌", "없이")
     for kws, label in _CATEGORY_MAP:
-        matched = any(
-            (kw in _tokens if len(kw) <= 2 else kw in t)
-            for kw in kws
-        )
-        if matched:
-            keyword = label
-            tags.append(f"카테고리: {label}")
-            break
+        for kw in kws:
+            pattern = rf"(?<![가-힣a-zA-Z]){re.escape(kw)}(?![가-힣a-zA-Z])"
+            for match in re.finditer(pattern, t):
+                following = t[match.end():match.end() + 18]
+                if any(negator in following for negator in negators):
+                    continue
+                category_matches.append((match.start(), label))
+    keyword = min(category_matches, default=(0, ""), key=lambda item: item[0])[1]
+    if keyword:
+        tags.append(f"카테고리: {keyword}")
 
     # 팔로워 범위
     f_range = _detect_follower_range(t)
@@ -129,9 +137,12 @@ def parse_nl_query(text: str) -> dict:
             break
 
     # 성별 힌트
-    if any(w in t for w in ["여성", "여자", "여", "girl", "female"]):
+    gender = "전체"
+    if any(w in t for w in ["여성", "여자", "girl", "female", "woman"]):
+        gender = "여성"
         tags.append("성별: 여성")
-    elif any(w in t for w in ["남성", "남자", "남", "boy", "male"]):
+    elif any(w in t for w in ["남성", "남자", "boy", "male", "man"]):
+        gender = "남성"
         tags.append("성별: 남성")
 
     if not keyword:
@@ -149,5 +160,6 @@ def parse_nl_query(text: str) -> dict:
         "follower_min": lo,
         "follower_max": hi,
         "region": region,
+        "gender": gender,
         "detected_tags": tags,
     }

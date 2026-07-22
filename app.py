@@ -5,7 +5,12 @@ import os
 import streamlit as st
 import pandas as pd
 import io
-from apify_helper import search_by_keyword, search_by_following, analyze_accounts, search_similar_creators, precise_filter_accounts, estimated_precise_filter_cost
+from apify_helper import (
+    EXCLUSION_PRESETS, analyze_accounts, build_exclusion_terms,
+    estimated_precise_filter_cost, precise_filter_accounts,
+    profile_matches_constraints, search_by_following, search_by_keyword,
+    search_similar_creators,
+)
 from dm_templates import classify_group, get_dm, get_group_label, GROUPS
 from instagram_dm import login, logout, load_session, send_dms, get_inbox, get_thread, reply_to_thread, check_follow_status, follow_users, get_follower_counts
 from nl_parser import parse_nl_query
@@ -486,7 +491,7 @@ with st.container(key="main_panel"):
 
             ai_query = st.text_area(
                 "찾고 싶은 크리에이터",
-                placeholder="찾고 싶은 인플루언서를 설명해주세요.\n예시) '팔로워 1만~5만의 K-뷰티 스킨케어 전문가'",
+                placeholder="콘텐츠 주제를 입력해주세요.\n예시) '헬스 웨이트 트레이닝', 'K-뷰티 스킨케어'",
                 key="ai_query", height=90, label_visibility="collapsed",
             )
             _region_col, _limit_col = st.columns([2, 1])
@@ -504,32 +509,75 @@ with st.container(key="main_panel"):
                 )
                 st.session_state["ai_limit"] = ai_limit
 
+            st.caption("지역·팔로워·성별·제외 조건은 아래 선택값이 최종 적용됩니다.")
+            _follower_steps = [0, 1_000, 5_000, 10_000, 30_000, 50_000, 100_000, 300_000, 500_000, 1_000_000, 3_000_000, 10_000_000, 999_999_999]
+            _follower_range = st.select_slider(
+                "팔로워 범위",
+                options=_follower_steps,
+                value=st.session_state.get("ai_follower_range", (0, 999_999_999)),
+                format_func=lambda value: "제한 없음" if value == 999_999_999 else fmt_followers(value),
+                key="ai_follower_range",
+            )
+            _gender_filter = st.radio(
+                "성별 조건",
+                options=["전체", "남성", "여성"],
+                format_func=lambda value: value if value == "전체" else f"{value} 신호 계정만",
+                horizontal=True,
+                key="ai_gender_filter",
+                help="프로필명·사용자명·소개에 성별 근거가 명시된 계정만 통과합니다.",
+            )
+            _exclude_presets = st.multiselect(
+                "제외 카테고리 (선택한 검색에만 적용)",
+                options=list(EXCLUSION_PRESETS),
+                key="ai_exclude_presets",
+                placeholder="예: 육아·맘, 리빙·살림",
+            )
+            _custom_excludes = st.text_input(
+                "추가 제외 키워드",
+                key="ai_custom_excludes",
+                placeholder="쉼표로 구분 — 예: 쇼호스트, 공동구매",
+            )
+            _exclude_terms = build_exclusion_terms(_exclude_presets, _custom_excludes)
+
+            _follower_summary = (
+                f"{fmt_followers(_follower_range[0])}~"
+                + ("제한 없음" if _follower_range[1] == 999_999_999 else fmt_followers(_follower_range[1]))
+            )
+            _exclude_summary = ", ".join(_exclude_presets + ([v.strip() for v in _custom_excludes.split(",") if v.strip()])) or "없음"
+            st.info(
+                f"검색 전 확인 · 지역 **{_manual_region}** · 팔로워 **{_follower_summary}** · "
+                f"성별 **{_gender_filter}** · 제외 **{_exclude_summary}**"
+            )
+            if _exclude_terms:
+                with st.expander("실제 적용되는 제외어 보기"):
+                    st.caption(", ".join(_exclude_terms))
+
             _CHIPS_POOL = [
-                "20대 여성 스킨케어 뷰티 마이크로",
+                "스킨케어 뷰티 리뷰",
                 "글로우 메이크업 뷰티 크리에이터",
-                "비건 클린뷰티 한국 나노",
-                "K뷰티 스킨케어 루틴 마이크로",
-                "한국 육아 맘 팔로워 5만",
+                "비건 클린뷰티",
+                "K뷰티 스킨케어 루틴",
+                "육아용품 리뷰",
                 "신생아 육아 일상 엄마",
                 "육아템 공구 맘 크리에이터",
-                "육아 브이로그 감성 한국 맘",
-                "피트니스 다이어트 여성 마이크로",
+                "육아 브이로그 감성",
+                "피트니스 다이어트",
                 "홈트레이닝 운동 크리에이터",
                 "건강식품 영양제 리뷰어",
                 "필라테스 요가 여성 강사",
                 "먹방 맛집 탐방 한국",
                 "홈쿡 레시피 요리 크리에이터",
-                "비건 채식 요리 한국",
-                "카페 디저트 감성 나노",
-                "강아지 고양이 반려동물 한국",
+                "비건 채식 요리",
+                "카페 디저트 감성",
+                "강아지 고양이 반려동물",
                 "펫푸드 간식 반려견 크리에이터",
                 "고양이 일상 감성 계정",
-                "서울 감성 홈카페 나노",
+                "감성 홈카페",
                 "미니멀 인테리어 홈스타그램",
                 "신혼 인테리어 셀프 DIY",
-                "데일리룩 패션 20대 여성",
-                "스트릿 패션 서울 남성",
-                "국내 여행 감성 크리에이터",
+                "데일리룩 패션",
+                "스트릿 패션",
+                "여행 감성 크리에이터",
                 "제주 여행 일상 감성",
                 "재테크 주식 경제 크리에이터",
                 "20대 라이프스타일 브이로그",
@@ -584,21 +632,23 @@ with st.container(key="main_panel"):
                     _token_setup_dialog()
                 else:
                     parsed = parse_nl_query(ai_query.strip())
-                    # 수동 지역 선택이 전체가 아니면 NLP 감지보다 우선 적용
-                    _effective_region = _manual_region if _manual_region != "전체" else parsed["region"]
+                    # 구조화 필터가 자연어 추정보다 항상 우선한다.
+                    _effective_region = _manual_region
+                    f_min, f_max = _follower_range
                     # 검색 함수 내부에서 충분한 후보를 수집·점수화한 뒤 요청 수만 반환한다.
                     _fetch_limit = ai_limit
-                    tags = parsed["detected_tags"]
-                    if _manual_region != "전체" and f"지역: {_manual_region}" not in tags:
-                        tags = [t for t in tags if not t.startswith("지역:")] + [f"지역: {_manual_region}"]
+                    tags = [
+                        f"주제: {parsed['keyword']}", f"지역: {_effective_region}",
+                        f"팔로워: {_follower_summary}", f"성별: {_gender_filter}",
+                    ]
+                    if _exclude_summary != "없음":
+                        tags.append(f"제외: {_exclude_summary}")
                     tag_html = " ".join(
                         f"<span style='background:#e8f4fd;color:#0d6efd;padding:3px 10px;"
-                        f"border-radius:20px;font-size:13px;margin:2px;display:inline-block;'>{t}</span>"
+                        f"border-radius:20px;font-size:13px;margin:2px;display:inline-block;'>{html.escape(t)}</span>"
                         for t in tags
                     ) if tags else "<span style='color:#999'>자동 감지된 조건 없음 — 원문 키워드로 검색해요</span>"
-                    st.markdown(f"**감지된 조건:** {tag_html}", unsafe_allow_html=True)
-                    _hi_label = "무제한" if parsed["follower_max"] > 10_000_000 else f"{parsed['follower_max']:,}"
-                    st.caption(f"검색 키워드: **{parsed['keyword']}** | 팔로워 범위: {parsed['follower_min']:,} ~ {_hi_label} | 지역: {_effective_region}")
+                    st.markdown(f"**적용 조건:** {tag_html}", unsafe_allow_html=True)
                     status_ai = st.empty()
                     bar_ai = st.progress(0)
                     def ai_progress(msg):
@@ -606,7 +656,7 @@ with st.container(key="main_panel"):
                         bar_ai.progress(50)
                     _cache_key = (
                         ai_query.strip().lower(), _fetch_limit, _effective_region,
-                        parsed["follower_min"], parsed["follower_max"],
+                        f_min, f_max, _gender_filter, tuple(_exclude_terms),
                     )
                     _search_cache = st.session_state.setdefault("_search_cache", {})
                     if _cache_key in _search_cache:
@@ -616,9 +666,11 @@ with st.container(key="main_panel"):
                         profiles_raw, err = search_by_keyword(
                             parsed["keyword"], _fetch_limit, ai_progress,
                             apify_token=_apify_token, region=_effective_region,
-                            follower_min=parsed["follower_min"],
-                            follower_max=parsed["follower_max"],
+                            follower_min=f_min,
+                            follower_max=f_max,
                             quality_query=ai_query.strip(),
+                            gender=_gender_filter,
+                            exclude_terms=_exclude_terms,
                         )
                         if not err:
                             if len(_search_cache) >= 10:
@@ -637,10 +689,13 @@ with st.container(key="main_panel"):
                         else:
                             st.error(err)
                     else:
-                        f_min, f_max = parsed["follower_min"], parsed["follower_max"]
-                        filtered = [p for p in profiles_raw if f_min <= p["followers"] <= f_max]
-                        if _effective_region != "전체":
-                            filtered = [p for p in filtered if p.get("region", "해외") == _effective_region]
+                        filtered = [
+                            p for p in profiles_raw
+                            if profile_matches_constraints(
+                                p, _effective_region, f_min, f_max,
+                                _gender_filter, _exclude_terms,
+                            )
+                        ]
                         zero_users = [p["username"] for p in filtered if p["followers"] == 0]
                         if zero_users and st.session_state.get("ig_logged_in"):
                             status_ai.info(f"⏳ 팔로워 미확인 {len(zero_users)}개 계정 보완 중...")
@@ -688,8 +743,13 @@ with st.container(key="main_panel"):
                                 if _pf_err:
                                     st.error(_pf_err)
                                 else:
-                                    if _effective_region != "전체":
-                                        _precise = [p for p in _precise if p.get("region", "해외") == _effective_region]
+                                    _precise = [
+                                        p for p in _precise
+                                        if profile_matches_constraints(
+                                            p, _effective_region, f_min, f_max,
+                                            _gender_filter, _exclude_terms,
+                                        )
+                                    ]
                                     st.session_state["precise_filtered"] = _precise
                                     _pf_status.success(f"정밀 필터 완료 — {len(_precise)}개 계정 확인!")
                                     st.rerun()
@@ -764,6 +824,7 @@ with st.container(key="main_panel"):
                     "예상 단가": estimate_cost_range(p["followers"], p.get("is_verified", False)),
                     "카테고리": p.get("category", ""),
                     "인증": "✅" if p.get("is_verified") else "",
+                    "성별 근거": p.get("gender_reason", ""),
                     "추천 점수": p.get("recommendation_score", 0),
                     "선정 이유": " · ".join(p.get("recommendation_reasons", [])),
                     "프로필 URL": p["profile_url"], "DM 문구": _dm,
@@ -835,7 +896,7 @@ with st.container(key="main_panel"):
 
                 with result_tab1:
                     _view = st.radio("보기 방식", ["📋 테이블", "🃏 카드"], horizontal=True, label_visibility="collapsed", key="result_view_mode")
-                    disp = ["추천 점수", "선정 이유", "계정명", "실명/채널명", "팔로워 수", "예상 단가", "그룹명", "지역", "카테고리", "인증", "프로필 URL"]
+                    disp = ["추천 점수", "선정 이유", "계정명", "실명/채널명", "팔로워 수", "예상 단가", "그룹명", "지역", "카테고리", "성별 근거", "인증", "프로필 URL"]
                     if "팔로우 상태" in df.columns:
                         disp = ["팔로우 상태"] + disp
                     if _view == "📋 테이블":

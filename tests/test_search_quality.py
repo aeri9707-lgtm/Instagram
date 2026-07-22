@@ -2,7 +2,12 @@ import unittest
 from unittest.mock import patch
 
 import apify_helper
-from apify_helper import _detect_region_details, _normalize_profile, _quality_score
+from apify_helper import (
+    _detect_region_details, _normalize_profile, _quality_score,
+    build_exclusion_terms, detect_profile_gender, profile_matches_constraints,
+    profile_matches_topic,
+)
+from nl_parser import parse_nl_query
 from ui_components import profile_card
 
 
@@ -35,7 +40,7 @@ class _FakeActor:
         self.client.started.append((self.actor_id, run_input))
         start = 0 if len(self.client.started) == 1 else 18
         self.client.datasets[run_id] = [
-            {"username": f"mom_{i}", "followersCount": 10_000 + i}
+            {"username": f"{self.client.username_prefix}_{i}", "followersCount": 10_000 + i}
             for i in range(start, start + 18)
         ]
         return {"id": run_id}
@@ -43,7 +48,7 @@ class _FakeActor:
     def call(self, run_input, **_kwargs):
         run_id = "profiles"
         self.client.profile_usernames = list(run_input["usernames"])
-        self.client.datasets[run_id] = [
+        default_items = [
             {
                 "username": username,
                 "fullName": f"육아맘 {username}",
@@ -54,14 +59,20 @@ class _FakeActor:
             }
             for username in run_input["usernames"]
         ]
+        self.client.datasets[run_id] = (
+            [self.client.profile_factory(username) for username in run_input["usernames"]]
+            if self.client.profile_factory else default_items
+        )
         return {"id": run_id, "status": "SUCCEEDED", "defaultDatasetId": run_id}
 
 
 class _FakeClient:
-    def __init__(self):
+    def __init__(self, profile_factory=None, username_prefix="mom"):
         self.started = []
         self.datasets = {}
         self.profile_usernames = []
+        self.profile_factory = profile_factory
+        self.username_prefix = username_prefix
 
     def actor(self, actor_id):
         return _FakeActor(self, actor_id)
@@ -74,6 +85,14 @@ class _FakeClient:
 
 
 class SearchQualityTests(unittest.TestCase):
+    def test_original_failed_query_is_parsed_as_health_and_ten_to_fifty_thousand(self):
+        parsed = parse_nl_query(
+            "헬스 인플루언서 1~5만 찾아줘. 남자 위주로, 육아 계정은 제외. 남자 계정만 체크해줘"
+        )
+        self.assertEqual(parsed["keyword"], "헬스")
+        self.assertEqual((parsed["follower_min"], parsed["follower_max"]), (10_000, 50_000))
+        self.assertEqual(parsed["gender"], "남성")
+
     def test_korean_region_evidence_has_confidence(self):
         self.assertEqual(
             _detect_region_details("서울 육아 콘텐츠", "김하늘", "sky_mom", ""),
@@ -158,6 +177,66 @@ class SearchQualityTests(unittest.TestCase):
         self.assertIn("3.2만", card)
         self.assertNotIn("만만", card)
         self.assertIn("추천 87점", card)
+
+    def test_dynamic_exclusion_only_applies_when_selected(self):
+        profile = _normalize_profile({
+            "username": "living_mom", "fullName": "리빙 육아맘",
+            "biography": "살림과 육아용품 리뷰", "followersCount": 30_000,
+            "postsCount": 100, "countryCode": "KR",
+        })
+        self.assertTrue(profile_matches_constraints(profile, region="한국"))
+        terms = build_exclusion_terms(["육아·맘", "리빙·살림"])
+        self.assertFalse(profile_matches_constraints(profile, region="한국", exclude_terms=terms))
+
+    def test_strict_gender_requires_explicit_profile_evidence(self):
+        male = _normalize_profile({
+            "username": "fit_man", "fullName": "남성 헬스 트레이너",
+            "biography": "웨이트 운동 코치", "followersCount": 30_000,
+            "postsCount": 100, "countryCode": "KR",
+        })
+        unknown = dict(male, username="trainer_k", full_name="김트레이너", bio="웨이트 운동 코치")
+        self.assertEqual(detect_profile_gender(male)[0], "남성")
+        self.assertTrue(profile_matches_constraints(male, gender="남성"))
+        self.assertFalse(profile_matches_constraints(unknown, gender="남성"))
+
+    def test_topic_match_rejects_unrelated_living_profile(self):
+        fitness = {"username": "fit", "full_name": "헬스 트레이너", "bio": "웨이트 운동", "category": "다이어트·건강"}
+        living = {"username": "home", "full_name": "리빙 쇼호스트", "bio": "살림 인테리어", "category": "라이프스타일"}
+        self.assertTrue(profile_matches_topic(fitness, "헬스"))
+        self.assertFalse(profile_matches_topic(living, "헬스"))
+
+    def test_full_search_never_pads_strict_results_with_wrong_accounts(self):
+        def profile_factory(username):
+            index = int(username.split("_")[-1])
+            if index == 0:
+                return {
+                    "username": username, "fullName": "남성 헬스 트레이너",
+                    "biography": "웨이트 운동 피트니스 코치", "followersCount": 30_000,
+                    "postsCount": 100, "countryCode": "KR",
+                }
+            if index == 1:
+                return {
+                    "username": username, "fullName": "리빙 쇼호스트",
+                    "biography": "살림 공동구매", "followersCount": 30_000,
+                    "postsCount": 100, "countryCode": "KR",
+                }
+            return {
+                "username": username, "fullName": "여성 육아맘 피트니스",
+                "biography": "엄마의 홈트 운동", "followersCount": 30_000,
+                "postsCount": 100, "countryCode": "KR",
+            }
+
+        client = _FakeClient(profile_factory=profile_factory, username_prefix="creator")
+        exclusions = build_exclusion_terms(["육아·맘", "리빙·살림"], "쇼호스트, 공동구매")
+        with patch.object(apify_helper, "_get_client", return_value=client):
+            results, error = apify_helper.search_by_keyword(
+                "헬스", max_results=20, apify_token="test", region="한국",
+                follower_min=10_000, follower_max=50_000,
+                quality_query="헬스 웨이트 트레이닝", gender="남성",
+                exclude_terms=exclusions,
+            )
+        self.assertIsNone(error)
+        self.assertEqual([profile["username"] for profile in results], ["creator_0"])
 
 
 if __name__ == "__main__":

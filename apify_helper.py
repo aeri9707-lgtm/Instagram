@@ -369,6 +369,101 @@ _SEARCH_STOPWORDS = frozenset({
     "팔로워", "이상", "이하", "creator", "influencer", "instagram",
 })
 
+# 사용자가 검색 화면에서 선택했을 때만 활성화되는 동적 제외 프리셋.
+# 전역 필터가 아니며 선택하지 않은 검색에는 영향을 주지 않는다.
+EXCLUSION_PRESETS: dict[str, list[str]] = {
+    "육아·맘": ["육아", "육아맘", "맘스타그램", "워킹맘", "엄마", "아기", "신생아", "출산", "임신", "parenting", "mom", "mother"],
+    "리빙·살림": ["리빙", "살림", "주부", "홈스타그램", "집꾸미기", "living", "homemaker"],
+    "쇼호스트·공구": ["쇼호스트", "쇼핑호스트", "공동구매", "공구마켓", "라이브커머스", "live commerce"],
+    "뷰티": ["뷰티", "메이크업", "스킨케어", "화장품", "beauty", "makeup", "skincare"],
+    "패션": ["패션", "코디", "오오티디", "fashion", "ootd", "stylist"],
+    "요리·먹방": ["요리", "레시피", "먹방", "맛집", "food", "recipe", "cooking"],
+    "여행": ["여행", "트래블", "travel", "trip"],
+    "반려동물": ["반려동물", "강아지", "고양이", "펫", "pet", "dog", "cat"],
+    "헬스·운동": ["헬스", "운동", "피트니스", "웨이트", "fitness", "workout", "gym"],
+}
+
+_MALE_SIGNALS = (
+    "남성", "남자", "남편", "아빠", "애아빠", "형제", "male", "men", "man",
+    "husband", "father", "dad", "boy",
+)
+_FEMALE_SIGNALS = (
+    "여성", "여자", "아내", "엄마", "육아맘", "워킹맘", "맘스타그램", "여대생",
+    "female", "women", "woman", "wife", "mother", "mom", "girl",
+)
+
+
+def build_exclusion_terms(presets: list[str], custom_text: str = "") -> list[str]:
+    """선택된 프리셋과 쉼표 입력을 이번 검색에 적용할 제외어로 확장."""
+    terms: list[str] = []
+    for preset in presets:
+        terms.extend(EXCLUSION_PRESETS.get(preset, []))
+    terms.extend(part.strip().lower() for part in re.split(r"[,\n]", custom_text) if part.strip())
+    return list(dict.fromkeys(term.lower() for term in terms if term.strip()))
+
+
+def _contains_term(text: str, term: str) -> bool:
+    term = term.strip().lower()
+    if not term:
+        return False
+    if re.fullmatch(r"[a-z0-9 ]+", term):
+        return bool(re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text))
+    return term in text
+
+
+def detect_profile_gender(profile: dict) -> tuple[str, str]:
+    """프로필에 명시된 성별 신호만 사용한다. 이름만으로 추정하지 않는다."""
+    text = " ".join(str(profile.get(key) or "") for key in ("username", "full_name", "bio")).lower()
+    male = [signal for signal in _MALE_SIGNALS if _contains_term(text, signal)]
+    female = [signal for signal in _FEMALE_SIGNALS if _contains_term(text, signal)]
+    if male and not female:
+        return "남성", f"남성 신호: {male[0]}"
+    if female and not male:
+        return "여성", f"여성 신호: {female[0]}"
+    return "미확인", "프로필 성별 근거 없음"
+
+
+def profile_matches_constraints(
+    profile: dict,
+    region: str = "전체",
+    follower_min: int = 0,
+    follower_max: int = 999_999_999,
+    gender: str = "전체",
+    exclude_terms: list[str] | None = None,
+) -> bool:
+    """사용자가 이번 검색에서 지정한 강제 조건을 일관되게 적용."""
+    if profile.get("is_private") or int(profile.get("followers") or 0) <= 0:
+        return False
+    if not follower_min <= int(profile.get("followers") or 0) <= follower_max:
+        return False
+    if region != "전체" and profile.get("region") != region:
+        return False
+    detected_gender, gender_reason = detect_profile_gender(profile)
+    profile["detected_gender"] = detected_gender
+    profile["gender_reason"] = gender_reason
+    if gender != "전체" and detected_gender != gender:
+        return False
+    text = " ".join(
+        str(profile.get(key) or "")
+        for key in ("username", "full_name", "bio", "category")
+    ).lower()
+    matched_exclusions = [term for term in (exclude_terms or []) if _contains_term(text, term)]
+    profile["matched_exclusions"] = matched_exclusions
+    return not matched_exclusions
+
+
+def profile_matches_topic(profile: dict, keyword: str) -> bool:
+    """현재 검색 주제에 해당하는 신호가 프로필에 하나 이상 있는지 확인."""
+    category_key = "다이어트" if keyword == "헬스" else keyword
+    terms = [keyword]
+    terms.extend(_CATEGORY_KEYWORDS.get(category_key, []))
+    terms.extend(_CATEGORY_KEYWORDS_EN.get(category_key, []))
+    text = " ".join(
+        str(profile.get(key) or "")
+        for key in ("username", "full_name", "bio", "category")
+    ).lower()
+    return any(_contains_term(text, term.lower()) for term in dict.fromkeys(terms) if term)
+
 
 def _query_tokens(query: str) -> list[str]:
     tokens = re.findall(r"[0-9a-zA-Z가-힣]+", (query or "").lower())
@@ -446,6 +541,8 @@ def search_by_keyword(
     follower_min: int = 0,
     follower_max: int = 999_999_999,
     quality_query: str | None = None,
+    gender: str = "전체",
+    exclude_terms: list[str] | None = None,
 ) -> tuple[list[dict], str | None]:
     """
     멀티 키워드 + Google 검색으로 인스타그램 계정 수집.
@@ -468,26 +565,28 @@ def search_by_keyword(
     _last_err: str = ""
 
     # 방식 A — 키워드 4개 + Google 동시 실행 (start → 나중에 결과 수집)
+    _category_key = "다이어트" if kw == "헬스" else kw
     if _is_global:
-        _predefined = _CATEGORY_KEYWORDS_EN.get(kw, [])
+        _predefined = _CATEGORY_KEYWORDS_EN.get(_category_key, [])
         _auto = [f"{kw}influencer", f"{kw}creator"] if not _predefined else []
     else:
-        _predefined = _CATEGORY_KEYWORDS.get(kw, [])
+        _predefined = _CATEGORY_KEYWORDS.get(_category_key, [])
         _auto = [f"{kw}인플루언서", f"{kw}크리에이터"] if not _predefined else []
     _search_terms = list(dict.fromkeys([kw] + _predefined + _auto))
 
     if _is_global:
-        _google_queries = _CATEGORY_GOOGLE_QUERIES_EN.get(kw, [
+        _google_queries = _CATEGORY_GOOGLE_QUERIES_EN.get(_category_key, [
             f"site:instagram.com {kw} influencer",
             f"instagram {kw} creator followers",
         ])
     else:
-        _google_queries = _CATEGORY_GOOGLE_QUERIES.get(kw, [
+        _google_queries = _CATEGORY_GOOGLE_QUERIES.get(_category_key, [
             f"site:instagram.com {kw} 인플루언서",
             f"instagram {kw} 크리에이터 팔로워",
         ])
 
-    _candidate_target = max(max_results, min(120, max(30, round(max_results * 1.8))))
+    multiplier = 2.5 if gender != "전체" or exclude_terms else 1.8
+    _candidate_target = max(max_results, min(120, max(30, round(max_results * multiplier))))
     _kw_input = max(20, min(50, _candidate_target))
 
     def _start_keyword_runs(terms: list[str]) -> list[tuple[str, object]]:
@@ -526,6 +625,11 @@ def search_by_keyword(
                     if run_type == "kw":
                         uname = item.get("username", "")
                         if uname:
+                            candidate_text = " ".join(str(item.get(key) or "") for key in (
+                                "username", "fullName", "full_name", "biography", "bio", "description",
+                            )).lower()
+                            if any(_contains_term(candidate_text, term) for term in (exclude_terms or [])):
+                                continue
                             found.append(uname)
                             fc = _pick_int(item, "followersCount", "followers", "follower_count", "followedByCount")
                             if fc > 0:
@@ -607,12 +711,16 @@ def search_by_keyword(
         )
         profile["recommendation_score"] = score
         profile["recommendation_reasons"] = reasons
-        if profile.get("is_private") or profile.get("followers", 0) <= 0:
+        if not profile_matches_constraints(
+            profile, region, follower_min, follower_max, gender, exclude_terms,
+        ):
             continue
-        if not follower_min <= profile["followers"] <= follower_max:
+        if not profile_matches_topic(profile, kw):
             continue
-        if region != "전체" and profile.get("region") != region:
-            continue
+        if gender != "전체":
+            profile["recommendation_reasons"] = (
+                [profile.get("gender_reason", f"{gender} 신호 확인")] + profile["recommendation_reasons"]
+            )[:3]
         scored.append(profile)
 
     scored.sort(key=lambda p: (
