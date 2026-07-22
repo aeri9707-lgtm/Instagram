@@ -1,5 +1,7 @@
 import os
 import re
+import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from apify_client import ApifyClient
 from dotenv import load_dotenv
@@ -238,25 +240,35 @@ def _has_hangul(text: str) -> bool:
     return any("가" <= ch <= "힣" for ch in text)
 
 
-def _detect_region(bio: str, full_name: str, username: str, country_code: str) -> str:
+def _detect_region_details(
+    bio: str, full_name: str, username: str, country_code: str,
+) -> tuple[str, int, str]:
+    """지역, 판별 신뢰도(0~100), 판별 근거를 반환."""
     cc = (country_code or "").upper()
     if cc == "KR":
-        return "한국"
+        return "한국", 100, "국가 코드 KR"
     # KR 이외 명시적 국가코드 → 확실히 해외
     if cc and cc not in ("", "KR"):
-        return "해외"
+        return "해외", 100, f"국가 코드 {cc}"
+    city = _detect_city(bio, full_name)
+    if city:
+        return "한국", 90, f"한국 도시 {city}"
     if _has_hangul(bio) or _has_hangul(full_name) or _has_hangul(username):
-        return "한국"
+        return "한국", 75, "프로필 한글 사용"
     text = f"{bio} {full_name}".lower()
     if any(kw in text for kw in _KR_KEYWORDS):
-        return "한국"
+        return "한국", 70, "한국 관련 키워드"
     uname_lower = username.lower()
     if any(pat in uname_lower for pat in _KR_USERNAME_PATTERNS):
-        return "한국"
+        return "한국", 60, "계정명 한국 패턴"
     # 해외 positive 신호
     if any(sig in text for sig in _OVERSEAS_SIGNALS):
-        return "해외"
-    return "해외"
+        return "해외", 80, "해외 지역 키워드"
+    return "해외", 35, "한국 신호 없음"
+
+
+def _detect_region(bio: str, full_name: str, username: str, country_code: str) -> str:
+    return _detect_region_details(bio, full_name, username, country_code)[0]
 
 
 def _parse_count(val) -> int | None:
@@ -309,6 +321,9 @@ def _normalize_profile(item: dict) -> dict:
             break
 
     following = _pick_int(item, "followsCount", "followingCount", "followeeCount", "following", "follows_count")
+    region, region_confidence, region_reason = _detect_region_details(bio, full_name, uname, cc)
+    business_email = item.get("businessEmail") or item.get("business_email") or item.get("email") or ""
+    external_url = item.get("externalUrl") or item.get("external_url") or item.get("website") or ""
 
     # 디버그: 모든 키 저장
     _raw = {k: v for k, v in item.items() if k not in ("latestPosts", "biography", "profilePicUrl", "profilePicUrlHD") and v is not None}
@@ -337,11 +352,88 @@ def _normalize_profile(item: dict) -> dict:
         "is_verified":     bool(item.get("verified") or item.get("isVerified") or item.get("is_verified", False)),
         "profile_url":     f"https://www.instagram.com/{uname}/",
         "country_code":    cc,
-        "region":          _detect_region(bio, full_name, uname, cc),
+        "region":          region,
+        "region_confidence": region_confidence,
+        "region_reason":   region_reason,
         "city":            _detect_city(bio, full_name),
+        "is_private":      bool(item.get("private") or item.get("isPrivate") or item.get("is_private", False)),
+        "business_email":  business_email,
+        "external_url":    external_url,
         "relatedProfiles": related_usernames,
         "_raw_followers":  _raw,
     }
+
+
+_SEARCH_STOPWORDS = frozenset({
+    "인플루언서", "크리에이터", "계정", "검색", "추천", "한국", "해외",
+    "팔로워", "이상", "이하", "creator", "influencer", "instagram",
+})
+
+
+def _query_tokens(query: str) -> list[str]:
+    tokens = re.findall(r"[0-9a-zA-Z가-힣]+", (query or "").lower())
+    return list(dict.fromkeys(t for t in tokens if len(t) >= 2 and t not in _SEARCH_STOPWORDS))
+
+
+def _quality_score(
+    profile: dict,
+    query: str,
+    region: str,
+    follower_min: int = 0,
+    follower_max: int = 999_999_999,
+    source_hits: int = 1,
+) -> tuple[int, list[str]]:
+    """추가 게시물 호출 없이 검색용 프로필 데이터만으로 추천 품질을 평가."""
+    bio = str(profile.get("bio") or "")
+    full_name = str(profile.get("full_name") or "")
+    username = str(profile.get("username") or "")
+    category = str(profile.get("category") or "")
+    text = f"{bio} {full_name} {username} {category}".lower()
+    tokens = _query_tokens(query)
+    matched = [token for token in tokens if token in text]
+
+    coverage = len(matched) / len(tokens) if tokens else 0.5
+    relevance = min(45, round(35 * coverage) + min(max(source_hits, 1) * 3, 10))
+
+    if region == "전체":
+        region_score = 20
+    elif profile.get("region") == region:
+        region_score = round(20 * int(profile.get("region_confidence", 35)) / 100)
+    else:
+        region_score = 0
+
+    followers = int(profile.get("followers") or 0)
+    posts_count = int(profile.get("posts_count") or 0)
+    completeness = 5 if followers > 0 else 0
+    completeness += 5 if posts_count >= 30 else (3 if posts_count >= 10 else (1 if posts_count >= 3 else 0))
+    completeness += 3 if len(bio.strip()) >= 10 else 0
+    completeness += 2 if full_name.strip() else 0
+    follower_score = 15 if followers > 0 and follower_min <= followers <= follower_max else 0
+
+    contact_score = 0
+    if profile.get("business_email"):
+        contact_score += 3
+    if profile.get("external_url"):
+        contact_score += 2
+    if not contact_score and profile.get("is_verified"):
+        contact_score = 1
+
+    score = relevance + region_score + completeness + follower_score + min(contact_score, 5)
+    if profile.get("is_private"):
+        score -= 20
+
+    reasons: list[str] = []
+    if matched:
+        reasons.append("검색어 일치: " + ", ".join(matched[:3]))
+    if source_hits >= 2:
+        reasons.append(f"{source_hits}개 검색 경로에서 발견")
+    if region != "전체" and profile.get("region") == region:
+        reasons.append(str(profile.get("region_reason") or f"{region} 계정"))
+    if follower_score:
+        reasons.append("팔로워 조건 적합")
+    if profile.get("business_email") or profile.get("external_url"):
+        reasons.append("협업 연락 경로 확인")
+    return max(0, min(score, 100)), reasons[:3]
 
 
 # ── ① 키워드로 인스타그램 계정 직접 검색 ──────────────────────────
@@ -351,6 +443,9 @@ def search_by_keyword(
     progress_callback=None,
     apify_token: str | None = None,
     region: str = "전체",
+    follower_min: int = 0,
+    follower_max: int = 999_999_999,
+    quality_query: str | None = None,
 ) -> tuple[list[dict], str | None]:
     """
     멀티 키워드 + Google 검색으로 인스타그램 계정 수집.
@@ -366,8 +461,9 @@ def search_by_keyword(
     if progress_callback:
         progress_callback(f"'{kw}' 키워드로 인스타그램 계정 검색 중...")
 
-    # ── Step 1: 멀티 키워드 + Google 검색 병행 ──────────────────────
+    # ── Step 1: 빠른 핵심 검색, 부족할 때만 보조 검색 ───────────────
     usernames: set[str] = set()
+    source_hits: dict[str, int] = defaultdict(int)
     keyword_followers: dict[str, int] = {}
     _last_err: str = ""
 
@@ -391,84 +487,96 @@ def search_by_keyword(
             f"instagram {kw} 크리에이터 팔로워",
         ])
 
-    if progress_callback:
-        progress_callback(f"'{kw}' 관련 계정 동시 검색 중...")
+    _candidate_target = max(max_results, min(120, max(30, round(max_results * 1.8))))
+    _kw_input = max(20, min(50, _candidate_target))
 
-    # 모든 액터 동시 start
-    _runs: list[tuple[str, object]] = []  # (type, run)
-    _kw_input = max(30, max_results * 2)
-    for _term in _search_terms[:4]:
-        try:
-            r = client.actor(KEYWORD_ACTOR).start(
-                run_input={"query": _term, "maxResults": _kw_input}
-            )
-            if r:
-                _runs.append(("kw", r))
-        except Exception as e:
-            _last_err = str(e)
-
-    try:
-        g_r = client.actor(SEARCH_ACTOR).start(run_input={
-            "queries": "\n".join(_google_queries[:2]),
-            "maxPagesPerQuery": 1,
-            "resultsPerPage": 10,
-        })
-        if g_r:
-            _runs.append(("google", g_r))
-    except Exception as e:
-        _last_err = str(e)
-
-    # 해외 모드: 카테고리별 영어 해시태그 액터 2개 병행 실행
-    if _is_global:
-        _ht_tags = _HASHTAG_TERMS_EN.get(kw, [f"{kw}influencer", f"{kw}creator"])
-        for _ht in _ht_tags[:2]:
+    def _start_keyword_runs(terms: list[str]) -> list[tuple[str, object]]:
+        nonlocal _last_err
+        started: list[tuple[str, object]] = []
+        for term in terms:
             try:
-                ht_r = client.actor(HASHTAG_ACTOR).start(
-                    run_input={"hashtags": [_ht], "resultsLimit": max(30, _kw_input // 2)}
+                run = client.actor(KEYWORD_ACTOR).start(
+                    run_input={"query": term, "maxResults": _kw_input}
                 )
-                if ht_r:
-                    _runs.append(("hashtag", ht_r))
-            except Exception as e:
-                _last_err = str(e)
+                if run:
+                    started.append(("kw", run))
+            except Exception as exc:
+                _last_err = str(exc)
+        return started
 
-    # 모든 실행 완료 대기 후 결과 수집
+    def _collect_runs(runs: list[tuple[str, object]], wait_seconds: int) -> None:
+        nonlocal _last_err
+        deadline = time.monotonic() + wait_seconds
+        ig_url_re = re.compile(r"instagram\.com/([a-zA-Z0-9_.]{2,30})/?")
+        for run_type, run_obj in runs:
+            try:
+                run_client = client.run(_run_id(run_obj))
+                remaining = int(deadline - time.monotonic())
+                finished = (
+                    run_client.wait_for_finish(wait_secs=max(1, remaining))
+                    if remaining > 0 else run_client.get()
+                )
+                if not finished or str(finished.get("status", "")).upper() != "SUCCEEDED":
+                    continue
+                dataset_id = _dataset_id(finished) or _dataset_id(run_obj)
+                if not dataset_id:
+                    continue
+                for item in client.dataset(dataset_id).iterate_items():
+                    found: list[str] = []
+                    if run_type == "kw":
+                        uname = item.get("username", "")
+                        if uname:
+                            found.append(uname)
+                            fc = _pick_int(item, "followersCount", "followers", "follower_count", "followedByCount")
+                            if fc > 0:
+                                keyword_followers[uname] = fc
+                    elif run_type == "google":
+                        for result in (item.get("organicResults") or []):
+                            match = ig_url_re.search(result.get("url") or "")
+                            if match and match.group(1) not in ("p", "reel", "stories", "explore", "tv"):
+                                found.append(match.group(1))
+                    elif run_type == "hashtag":
+                        uname = item.get("ownerUsername") or (item.get("owner") or {}).get("username", "")
+                        if uname:
+                            found.append(uname)
+                    for uname in set(found):
+                        usernames.add(uname)
+                        source_hits[uname] += 1
+            except Exception as exc:
+                _last_err = str(exc)
+
+    primary_runs = _start_keyword_runs(_search_terms[:2])
     if progress_callback:
-        progress_callback(f"검색 완료 대기 중... (총 {len(_runs)}개 동시 실행)")
+        progress_callback(f"핵심 검색 1단계 진행 중... ({len(primary_runs)}개 동시 실행)")
+    _collect_runs(primary_runs, 25)
 
-    _ig_url_re = re.compile(r"instagram\.com/([a-zA-Z0-9_.]{2,30})/?")
-    for _rtype, _run_obj in _runs:
+    if len(usernames) < _candidate_target:
+        fallback_runs = _start_keyword_runs(_search_terms[2:4])
         try:
-            _finished = client.run(_run_id(_run_obj)).wait_for_finish()
-            if not _finished:
-                continue
-            dataset_id = _dataset_id(_finished) or _dataset_id(_run_obj)
-            if not dataset_id:
-                continue
-            for item in client.dataset(dataset_id).iterate_items():
-                if _rtype == "kw":
-                    uname = item.get("username", "")
-                    if uname:
-                        usernames.add(uname)
-                        fc = _pick_int(item, "followersCount", "followers", "follower_count", "followedByCount")
-                        if fc > 0:
-                            keyword_followers[uname] = fc
-                elif _rtype == "google":
-                    for result in (item.get("organicResults") or []):
-                        _url = result.get("url") or ""
-                        m = _ig_url_re.search(_url)
-                        if m:
-                            _u = m.group(1)
-                            if _u not in ("p", "reel", "stories", "explore", "tv"):
-                                usernames.add(_u)
-                elif _rtype == "hashtag":
-                    uname = (
-                        item.get("ownerUsername")
-                        or (item.get("owner") or {}).get("username", "")
-                    )
-                    if uname:
-                        usernames.add(uname)
-        except Exception as e:
-            _last_err = str(e)
+            google_run = client.actor(SEARCH_ACTOR).start(run_input={
+                "queries": "\n".join(_google_queries[:2]),
+                "maxPagesPerQuery": 1,
+                "resultsPerPage": 10,
+            })
+            if google_run:
+                fallback_runs.append(("google", google_run))
+        except Exception as exc:
+            _last_err = str(exc)
+
+        if _is_global:
+            hashtag = _HASHTAG_TERMS_EN.get(kw, [f"{kw}influencer"])[0]
+            try:
+                hashtag_run = client.actor(HASHTAG_ACTOR).start(
+                    run_input={"hashtags": [hashtag], "resultsLimit": _kw_input}
+                )
+                if hashtag_run:
+                    fallback_runs.append(("hashtag", hashtag_run))
+            except Exception as exc:
+                _last_err = str(exc)
+
+        if progress_callback:
+            progress_callback(f"후보 보강 검색 중... ({len(fallback_runs)}개 동시 실행)")
+        _collect_runs(fallback_runs, 18)
 
     if not usernames:
         if "hard limit" in _last_err.lower() or "usage" in _last_err.lower():
@@ -481,7 +589,8 @@ def search_by_keyword(
     if progress_callback:
         progress_callback(f"후보 {len(usernames)}개 프로필 수집 중...")
 
-    profiles, err = _fetch_profiles(list(usernames)[:100], client)
+    ranked_usernames = sorted(usernames, key=lambda u: (-source_hits[u], u))[:_candidate_target]
+    profiles, err = _fetch_profiles(ranked_usernames, client)
     if err:
         return [], err
 
@@ -490,8 +599,28 @@ def search_by_keyword(
         if p["followers"] == 0 and p["username"] in keyword_followers:
             p["followers"] = keyword_followers[p["username"]]
 
-    profiles.sort(key=lambda x: x["followers"], reverse=True)
-    return profiles[:max_results], None
+    scored: list[dict] = []
+    for profile in profiles:
+        score, reasons = _quality_score(
+            profile, quality_query or kw, region, follower_min, follower_max,
+            source_hits=source_hits.get(profile["username"], 1),
+        )
+        profile["recommendation_score"] = score
+        profile["recommendation_reasons"] = reasons
+        if profile.get("is_private") or profile.get("followers", 0) <= 0:
+            continue
+        if not follower_min <= profile["followers"] <= follower_max:
+            continue
+        if region != "전체" and profile.get("region") != region:
+            continue
+        scored.append(profile)
+
+    scored.sort(key=lambda p: (
+        -p["recommendation_score"],
+        -source_hits.get(p["username"], 1),
+        p["username"],
+    ))
+    return scored[:max_results], None
 
 
 # ── ① 정밀 팔로워 필터링 (instaprism/instagram-user-filter) ────────
@@ -646,7 +775,9 @@ def _fetch_profiles(
 ) -> tuple[list[dict], str | None]:
     try:
         run = client.actor(PROFILE_ACTOR).call(
-            run_input={"usernames": usernames}
+            run_input={"usernames": usernames},
+            timeout_secs=35,
+            wait_secs=40,
         )
     except Exception as e:
         msg = str(e)
@@ -655,11 +786,14 @@ def _fetch_profiles(
         return [], f"프로필 수집 오류: {msg}"
 
     profiles = []
-    if run:
-        for item in client.dataset(_dataset_id(run)).iterate_items():
+    dataset_id = _dataset_id(run) if run else ""
+    if dataset_id:
+        for item in client.dataset(dataset_id).iterate_items():
             p = _normalize_profile(item)
             if p["username"]:
                 profiles.append(p)
+    if not profiles:
+        return [], "프로필 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요."
     return profiles, None
 
 

@@ -436,7 +436,7 @@ if _platform == "instagram":
 _frange = (0, 999_999_999)
 _cat_filter: list[str] = []
 _grp_filter: list[str] = []
-_sort_by = "팔로워 많은순"
+_sort_by = "추천순"
 _region_filter = "전체"
 _city_filter: list[str] = []
 _verified_only = False
@@ -663,8 +663,8 @@ with st.container(key="main_panel"):
                     parsed = parse_nl_query(ai_query.strip())
                     # 수동 지역 선택이 전체가 아니면 NLP 감지보다 우선 적용
                     _effective_region = _manual_region if _manual_region != "전체" else parsed["region"]
-                    # 팔로워 조건이 있으면 필터링 손실 대비 fetch 수 2배
-                    _fetch_limit = ai_limit * 2 if parsed["follower_min"] > 0 else ai_limit
+                    # 검색 함수 내부에서 충분한 후보를 수집·점수화한 뒤 요청 수만 반환한다.
+                    _fetch_limit = ai_limit
                     tags = parsed["detected_tags"]
                     if _manual_region != "전체" and f"지역: {_manual_region}" not in tags:
                         tags = [t for t in tags if not t.startswith("지역:")] + [f"지역: {_manual_region}"]
@@ -681,7 +681,26 @@ with st.container(key="main_panel"):
                     def ai_progress(msg):
                         status_ai.info(f"⏳ {msg}")
                         bar_ai.progress(50)
-                    profiles_raw, err = search_by_keyword(parsed["keyword"], _fetch_limit, ai_progress, apify_token=_apify_token, region=_effective_region)
+                    _cache_key = (
+                        ai_query.strip().lower(), _fetch_limit, _effective_region,
+                        parsed["follower_min"], parsed["follower_max"],
+                    )
+                    _search_cache = st.session_state.setdefault("_search_cache", {})
+                    if _cache_key in _search_cache:
+                        status_ai.info("⚡ 같은 조건의 최근 검색 결과를 불러오는 중...")
+                        profiles_raw, err = _search_cache[_cache_key], None
+                    else:
+                        profiles_raw, err = search_by_keyword(
+                            parsed["keyword"], _fetch_limit, ai_progress,
+                            apify_token=_apify_token, region=_effective_region,
+                            follower_min=parsed["follower_min"],
+                            follower_max=parsed["follower_max"],
+                            quality_query=ai_query.strip(),
+                        )
+                        if not err:
+                            if len(_search_cache) >= 10:
+                                _search_cache.pop(next(iter(_search_cache)))
+                            _search_cache[_cache_key] = profiles_raw
                     bar_ai.progress(100)
                     if err:
                         status_ai.empty()
@@ -787,7 +806,7 @@ with st.container(key="main_panel"):
                     key="flt_grp", placeholder="전체",
                 )
                 _sort_by = st.selectbox(
-                    "정렬 기준", ["팔로워 많은순", "팔로워 적은순", "계정명순"], key="flt_sort",
+                    "정렬 기준", ["추천순", "팔로워 많은순", "팔로워 적은순", "계정명순"], key="flt_sort",
                 )
             with _ff3:
                 _region_filter = st.radio(
@@ -822,6 +841,8 @@ with st.container(key="main_panel"):
                     "예상 단가": estimate_cost_range(p["followers"], p.get("is_verified", False)),
                     "카테고리": p.get("category", ""),
                     "인증": "✅" if p.get("is_verified") else "",
+                    "추천 점수": p.get("recommendation_score", 0),
+                    "선정 이유": " · ".join(p.get("recommendation_reasons", [])),
                     "프로필 URL": p["profile_url"], "DM 문구": _dm,
                 })
 
@@ -835,7 +856,12 @@ with st.container(key="main_panel"):
                 and (not _verified_only or r["인증"] == "✅")
                 and (not _city_filter or r["도시"] in _city_filter)
             ]
-            _sk, _sd = {"팔로워 많은순": ("팔로워", True), "팔로워 적은순": ("팔로워", False), "계정명순": ("계정명", False)}[_sort_by]
+            _sk, _sd = {
+                "추천순": ("추천 점수", True),
+                "팔로워 많은순": ("팔로워", True),
+                "팔로워 적은순": ("팔로워", False),
+                "계정명순": ("계정명", False),
+            }[_sort_by]
             rows.sort(key=lambda r: r[_sk], reverse=_sd)
 
             if not rows:
@@ -886,7 +912,7 @@ with st.container(key="main_panel"):
 
                 with result_tab1:
                     _view = st.radio("보기 방식", ["📋 테이블", "🃏 카드"], horizontal=True, label_visibility="collapsed", key="result_view_mode")
-                    disp = ["계정명", "실명/채널명", "팔로워 수", "예상 단가", "그룹명", "지역", "카테고리", "인증", "프로필 URL"]
+                    disp = ["추천 점수", "선정 이유", "계정명", "실명/채널명", "팔로워 수", "예상 단가", "그룹명", "지역", "카테고리", "인증", "프로필 URL"]
                     if "팔로우 상태" in df.columns:
                         disp = ["팔로우 상태"] + disp
                     if _view == "📋 테이블":

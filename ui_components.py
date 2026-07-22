@@ -119,7 +119,7 @@ def profile_card(p: dict, dm_text: str = "", cost: str = "") -> str:
     verified = "✅ " if p.get("is_verified") else ""
     followers_raw = p.get("followers", 0)
     if followers_raw >= 10_000:
-        f_str = f"{followers_raw / 10_000:.1f}만".rstrip("0").rstrip(".") + "만"
+        f_str = f"{followers_raw / 10_000:.1f}".rstrip("0").rstrip(".") + "만"
     else:
         f_str = f"{followers_raw:,}"
 
@@ -133,6 +133,8 @@ def profile_card(p: dict, dm_text: str = "", cost: str = "") -> str:
     url = f"https://www.instagram.com/{safe_username_path}/"
     safe_cost = html.escape(str(cost))
     safe_dm_text = html.escape(str(dm_text))
+    recommendation_score = int(p.get("recommendation_score") or 0)
+    recommendation_reasons = html.escape(" · ".join(p.get("recommendation_reasons", [])))
 
     cat_chip = (
         f"<span style='background:#f0ebfa;color:#6d28d9;padding:2px 9px;"
@@ -148,6 +150,13 @@ def profile_card(p: dict, dm_text: str = "", cost: str = "") -> str:
         f"<div style='margin-top:8px;font-size:12px;color:{TEXT_SUB};'>"
         f"예상 단가 <strong style='color:{TEXT_MAIN};'>{safe_cost}</strong></div>"
         if cost else ""
+    )
+    recommendation_line = (
+        f"<div style='margin-top:9px;padding:8px 10px;background:#f5f3ff;border-radius:9px;"
+        f"font-size:12px;color:#5b21b6;'><strong>추천 {recommendation_score}점</strong>"
+        + (f" · {recommendation_reasons}" if recommendation_reasons else "")
+        + "</div>"
+        if recommendation_score else ""
     )
     dm_line = (
         f"<div style='margin-top:10px;padding:10px 14px;"
@@ -172,6 +181,7 @@ def profile_card(p: dict, dm_text: str = "", cost: str = "") -> str:
         f"</div>"
         f"<div style='margin-top:8px;'>{cat_chip}{region_chip}</div>"
         + (f"<div style='font-size:12px;color:{TEXT_SUB};margin-top:6px;'>{bio}</div>" if bio else "")
+        + recommendation_line
         + cost_line
         + dm_line
         + f"</div>"
